@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard</title>
+<style>
+ /* General Styles */
+    body {
+      background-color: #d21616; /*background color for entire page*/
+      color: #ffffff; /*font color for entire page*/
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+  header { background:rgb(0, 0, 0);
+     color:#f9f100; 
+     padding:10px; 
+     text-align:center; }
+  section { width:90%;
+     margin:20px auto; }
+  h2 { color:rgb(255, 253, 253); }
+  table { width:100%;
+     border-collapse: collapse; 
+     margin-bottom:10px; }
+  th, td { border:1px solid #f90606; 
+    padding:8px; 
+    text-align:center; }
+  th { background:rgb(247, 255, 8); 
+    color:#f7060e; }
+  input[type="text"], input[type="number"], input[type="date"], select {
+    width:100%; box-sizing:border-box;
+  }
+  button {
+    padding:5px 10px; margin-top:5px;
+    background:rgb(7, 7, 7); color:#fff; border:none; cursor:pointer;
+  }
+  button:hover { background:rgb(253, 8, 8); }
+
+  /* Footer */
+    footer {
+      background: #060606;
+      color: #f2fa00;
+      text-align: center;
+      padding: 15px;
+      margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Admin Dashboard</h1>
+  <p>Welcome to Bank! </p>
+  <button onclick="logout()">Logout</button>
+</header>
+
+<!-- Members -->
+<section>
+  <h2>Members</h2>
+  <table id="membersTable">
+    <thead>
+      <tr>
+        <th>Start Date</th>
+        <th>Name</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button onclick="addMemberRow()">Add Member</button>
+  <button onclick="saveDataToBackend()">Save Members</button>
+</section>
+
+<!-- Weekly Contributions -->
+<section>
+  <h2>Weekly Contributions</h2>
+  <table id="weeklyTable">
+    <thead>
+      <tr>
+        <th>Member Name</th>
+        <th>Date</th>
+        <th>Amount</th>
+        <th>Saving Balance</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button onclick="addWeeklyRow()">Add Contribution</button>
+  <button onclick="saveDataToBackend()">Save Weekly</button>
+</section>
+
+<!-- Withdrawals -->
+<section>
+  <h2>Withdrawals</h2>
+  <table id="withdrawalTable">
+    <thead>
+      <tr>
+        <th>Member Name</th>
+        <th>Current Balance</th>
+        <th>Amount Withdrawn</th>
+        <th>Date</th>
+        <th>Balance Left</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button onclick="addWithdrawalRow()">Add Withdrawal</button>
+  <button onclick="saveDataToBackend()">Save Withdrawals</button>
+</section>
+
+<!-- Loans -->
+<section>
+  <h2>Loans</h2>
+  <table id="loanTable">
+    <thead>
+      <tr>
+        <th>Date Taken</th>
+        <th>Member Name</th>
+        <th>Loan Requested</th>
+        <th>Amount Borrowed</th>
+        <th>Repayment Amount</th>
+        <th>Due Date</th>
+        <th>Finish Date</th>
+        <th>Loan Left</th>
+        <th>Late Fee</th>
+        <th>Total To Pay</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button onclick="addLoanRow()">Add Loan</button>
+  <button onclick="saveDataToBackend()">Save Loans</button>
+</section>
+
+<!-- Change Password -->
+<section>
+  <h2>Change Admin Password</h2>
+  <input type="password" id="adminOldPass" placeholder="Current Password">
+  <input type="password" id="adminNewPass" placeholder="New Password">
+  <button onclick="changeAdminPassword()">Change Password</button>
+</section>
+
+<script>
+    // ---------- Gate ----------
+    window.onload = function() {
+      const role = localStorage.getItem("role");
+      if (role !== "admin") {
+        alert("Access denied. Admins only.");
+        window.location.href = "login.html";
+        return;
+      }
+      loadData();
+    };
+
+    // ---------- Data ----------
+    let data = { members: [], weekly: [], withdrawals: [], loans: [] };
+
+    // ---------- Load ----------
+    async function loadData() {
+      try {
+        const res = await fetch('/api/admin-data');
+        data = await res.json();
+        renderAll();
+      } catch (err) { console.error("Error loading data:", err); }
+    }
+
+    // ---------- Balances ----------
+    function getMemberBalances() {
+      const balances = {};
+      data.members.forEach(m => balances[m.username || m.name] = 0); // fallback
+
+      data.weekly.forEach(w => {
+        if (!balances[w.member]) balances[w.member] = 0;
+        balances[w.member] += parseFloat(w.amount) || 0;
+      });
+
+      data.withdrawals.forEach(w => {
+        if (!balances[w.member]) balances[w.member] = 0;
+        balances[w.member] -= parseFloat(w.withdrawn) || 0;
+      });
+
+      data.loans.forEach(l => {
+        if (!balances[l.member]) balances[l.member] = 0;
+        // Use approved "borrowed" amount for impact
+        const approved = parseFloat(l.borrowed) || 0;
+        balances[l.member] -= approved;
+        balances[l.member] += parseFloat(l.repayment || 0); // repayments add back
+      });
+
+      return balances;
+    }
+
+    // ---------- Render ----------
+    function renderMembers() {
+      const tbody = document.querySelector("#membersTable tbody");
+      tbody.innerHTML = "";
+      data.members.forEach((m,i) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><input value="${m.startDate || ''}" type="date"></td>
+          <td><input value="${m.name || ''}" type="text"></td>
+          <td>
+            <select>
+              <option value="active" ${m.status==="active"?"selected":""}>Active</option>
+              <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
+            </select>
+          </td>
+          <td><button onclick="deleteRow('members',${i})">Delete</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function renderWeekly() {
+      const tbody = document.querySelector("#weeklyTable tbody");
+      tbody.innerHTML = "";
+      const balances = getMemberBalances();
+
+      data.weekly.forEach((w,i) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><input type="text" value="${w.member || ''}" placeholder="username"></td>
+          <td><input type="date" value="${w.date || ''}"></td>
+          <td><input type="number" value="${w.amount || 0}"></td>
+          <td>${(balances[w.member] || 0).toFixed(2)}</td>
+          <td><button onclick="deleteRow('weekly',${i})">Delete</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function renderWithdrawals() {
+      const tbody = document.querySelector("#withdrawalTable tbody");
+      tbody.innerHTML = "";
+      const balances = getMemberBalances();
+
+      data.withdrawals.forEach((w,i) => {
+        const current = balances[w.member] || 0;
+        const after = current - (parseFloat(w.withdrawn) || 0);
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><input type="text" value="${w.member || ''}" placeholder="username"></td>
+          <td>${current.toFixed(2)}</td>
+          <td><input type="number" value="${w.withdrawn || 0}"></td>
+          <td><input type="date" value="${w.date || ''}"></td>
+          <td>${after.toFixed(2)}</td>
+          <td><button onclick="deleteRow('withdrawals',${i})">Delete</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function renderLoans() {
+      const tbody = document.querySelector("#loanTable tbody");
+      tbody.innerHTML = "";
+      data.loans.forEach((l,i) => {
+        const borrowed = parseFloat(l.borrowed) || 0;
+        const repaid = parseFloat(l.repayment) || 0;
+        let loanLeft = Math.max(borrowed - repaid, 0);
+        let lateFee = 0;
+
+        const today = new Date();
+        const finish = l.finishDate ? new Date(l.finishDate) : null;
+        if (finish && today > finish && l.status === "ongoing") {
+          lateFee = loanLeft * 0.02;
+          loanLeft += lateFee;
+        }
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><input type="date" value="${l.dateTaken || ''}"></td>
+          <td><input type="text" value="${l.member || ''}" placeholder="username"></td>
+          <td><input type="number" value="${l.loanRequested || 0}"></td>
+          <td><input type="number" value="${borrowed}"></td>
+          <td><input type="number" value="${repaid}"></td>
+          <td><input type="date" value="${l.dueDate || ''}"></td>
+          <td><input type="date" value="${l.finishDate || ''}"></td>
+          <td>${loanLeft.toFixed(2)}</td>
+          <td>${lateFee.toFixed(2)}</td>
+          <td>${loanLeft.toFixed(2)}</td>
+          <td>
+            <select>
+              <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
+              <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
+            </select>
+          </td>
+          <td><button onclick="deleteRow('loans',${i})">Delete</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // ---------- Add/Delete ----------
+    function addMemberRow() {
+      data.members.push({ startDate: "", name: "", status: "active" });
+      renderMembers();
+    }
+    function addWeeklyRow() {
+      data.weekly.push({ member: "", date: "", amount: 0 });
+      renderWeekly();
+    }
+    function addWithdrawalRow() {
+      data.withdrawals.push({ member: "", withdrawn: 0, date: "" });
+      renderWithdrawals();
+    }
+    function addLoanRow() {
+      data.loans.push({
+        dateTaken: "", member: "", loanRequested: 0, borrowed: 0,
+        repayment: 0, dueDate: "", finishDate: "", status: "ongoing"
+      });
+      renderLoans();
+    }
+    function deleteRow(section, index) {
+      data[section].splice(index, 1);
+      renderAll();
+      saveDataToBackend();
+    }
+
+    // ---------- Save ----------
+    async function saveDataToBackend() {
+      try {
+        await fetch('/api/admin-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        alert("Saved.");
+      } catch (err) {
+        console.error("Error saving data:", err);
+        alert("Error saving data to server.");
+      }
+      renderAll();
+    }
+
+    // ---------- Render All ----------
+    function renderAll() {
+      renderMembers();
+      renderWeekly();
+      renderWithdrawals();
+      renderLoans();
+    }
+
+    // ---------- Navigation ----------
+    function goToMemberPage() {
+      window.location.href = "member.html";
+    }
+    function logout() {
+      localStorage.clear();
+      window.location.href = "login.html";
+    }
+
+    // ---------- Password ----------
+    async function changeAdminPassword() {
+      const username = localStorage.getItem("loggedInUser") || "Jal"; // default admin
+      const oldPassword = document.getElementById('adminOldPass').value;
+      const newPassword = document.getElementById('adminNewPass').value;
+      if (!oldPassword || !newPassword) { alert('Please fill both fields'); return; }
+      try {
+        const res = await fetch('/api/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, oldPassword, newPassword })
+        });
+        const result = await res.json();
+        alert(result.message);
+      } catch (err) { console.error(err); alert('Error changing password'); }
+    }
+
+    // Expose to HTML buttons
+    window.addMemberRow = addMemberRow;
+    window.addWeeklyRow = addWeeklyRow;
+    window.addWithdrawalRow = addWithdrawalRow;
+    window.addLoanRow = addLoanRow;
+    window.deleteRow = deleteRow;
+    window.saveDataToBackend = saveDataToBackend;
+    window.goToMemberPage = goToMemberPage;
+    window.logout = logout;
+    window.changeAdminPassword = changeAdminPassword;
+  </script>
+
+ <footer>
+    <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
+  </footer>
+
+</body>
+</html>

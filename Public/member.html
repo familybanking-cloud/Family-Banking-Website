@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Member Dashboard - Family Banking</title>
+<style>
+ /* General Styles */
+    body {
+      background-color: #d21616; /*background color for entire page*/
+      color: #ffffff; /*font color for entire page*/
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+  nav { background: #000000;
+     color: rgb(0, 0, 0);
+      padding: 10px 20px;
+       display:flex; 
+       justify-content:space-between; 
+       align-items:center; }
+
+  nav a { color:rgb(255, 247, 0); 
+    text-decoration:none; 
+    margin:0 10px; 
+    font-weight:bold; }
+
+    nav a:hover { text-decoration: underline;
+    color:#ff0202 }
+
+  .container { max-width:1000px; 
+    margin:30px auto; 
+    padding:20px; 
+    background:rgb(0, 0, 0);
+     border-radius:8px; 
+     box-shadow:0 0 10px rgba(0,0,0,0.1); }
+  
+  h2 { color:#fff200; }
+
+  h3 { margin-top:40px; 
+    color:#fbff1e; }
+
+  table { width:100%; 
+    border-collapse: collapse;
+     margin-bottom:20px; }
+  th, td { border:1px solid #ff000d; 
+    padding:8px;
+     text-align:center; }
+  th { background:#edfe00;
+     color:rgb(255, 0, 0); }
+  .nav-buttons { margin:20px 0;
+     display:flex;
+      gap:15px; }
+  .nav-buttons button {
+    padding:10px 20px;
+    border:none;
+    background:#fe0008;
+    color:rgb(234, 246, 0);
+    font-weight:bold;
+    border-radius:5px;
+    cursor:pointer;
+    transition:0.3s;
+  }
+
+  .nav-buttons button:hover { background:#ff0808; }
+
+  /* Footer */
+    footer {
+      background: #060606;
+      color: #f2fa00;
+      text-align: center;
+      padding: 15px;
+      margin-top: 40px;
+    }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo"><img src="logo.jpeg" alt="Family Banking Logo" style="height:50px;"></div>
+  <div class="nav-links">
+    <a href="home.html">Home</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="#" onclick="logout()">Logout</a>
+  </div>
+</nav>
+
+  <div class="container">
+     <h2>Welcome, <span id="memberName"></span></h2>
+  <p>Your Banking Information is displayed below.</p>
+
+  <!-- Navigation buttons -->
+  <div class="nav-buttons">
+    <button onclick="scrollToSection('balanceSection')">Check Balance</button>
+    <button onclick="scrollToSection('weeklySection')">Deposit</button>
+    <button onclick="scrollToSection('withdrawalSection')">Withdraw</button>
+    <button onclick="scrollToSection('loanSection')">Loan</button>
+  </div>
+
+  <!-- Balance Overview -->
+  <section id="balanceSection">
+    <h3> Account Balance</h3>
+    <p><strong>Current Balance:</strong> $<span id="currentBalance">0.00</span></p>
+  </section>
+
+  <!-- Weekly Contributions -->
+  <section id="weeklySection">
+    <h3> Weekly Contributions</h3>
+    <table id="weeklyTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Withdrawals -->
+  <section id="withdrawalSection">
+    <h3>Withdrawals</h3>
+    <table id="withdrawalTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Amount Withdrawn</th>
+          <th>Balance Left</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Loans -->
+  <section id="loanSection">
+    <h3>Loans</h3>
+    <table id="loanTable">
+      <thead>
+        <tr>
+          <th>Date Taken</th>
+          <th>Loan Requested</th>
+          <th>Borrowed</th>
+          <th>Repayment</th>
+          <th>Loan Left</th>
+          <th>Late Fee</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+    // ---------- Gate ----------
+    const role = localStorage.getItem("role");
+    const username = localStorage.getItem("loggedInUser");
+    const displayName = localStorage.getItem("displayName") || username;
+
+    if (!username || role !== "member") {
+      // Allow admins to peek (since you requested admin<->member links)
+      if (role === "admin" && username) {
+        // ok allow
+      } else {
+        alert("Please log in as a member.");
+        window.location.href = "login.html";
+      }
+    }
+
+    document.getElementById("memberName").innerText = displayName;
+
+    let dataset = { weekly: [], withdrawals: [], loans: [] };
+
+    async function loadData() {
+      try {
+        const targetUser = role === "member" ? username : prompt("Admin view: enter member username to view:");
+        if (!targetUser) {
+          alert("No username provided."); 
+          window.location.href = "admin.html";
+          return;
+        }
+        const res = await fetch(`/api/member-data/${encodeURIComponent(targetUser)}`);
+        const result = await res.json();
+        if (!result.success) {
+          alert(result.message || "Could not load member data.");
+          window.location.href = "admin.html";
+          return;
+        }
+        dataset = { weekly: result.weekly || [], withdrawals: result.withdrawals || [], loans: result.loans || [] };
+        render();
+      } catch (err) {
+        console.error(err);
+        alert("Error fetching member data.");
+      }
+    }
+
+    function calculateBalance() {
+      let total = 0;
+      dataset.weekly.forEach(w => total += parseFloat(w.amount) || 0);
+      dataset.withdrawals.forEach(w => total -= parseFloat(w.withdrawn) || 0);
+      dataset.loans.forEach(l => {
+        const borrowed = parseFloat(l.borrowed) || 0;
+        const repaid = parseFloat(l.repayment) || 0;
+        total -= borrowed;
+        total += repaid;
+        // Late fee not deducted here—it's shown on the loan row as part of "loan left"
+      });
+      return total;
+    }
+
+    function render() {
+      // Balance
+      document.getElementById("currentBalance").innerText = calculateBalance().toFixed(2);
+
+      // Weekly
+      const wb = document.querySelector("#weeklyTable tbody");
+      wb.innerHTML = "";
+      dataset.weekly.forEach(w => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${w.date || ""}</td><td>${(parseFloat(w.amount)||0).toFixed(2)}</td>`;
+        wb.appendChild(tr);
+      });
+
+      // Withdrawals
+      const wd = document.querySelector("#withdrawalTable tbody");
+      wd.innerHTML = "";
+      dataset.withdrawals.forEach(w => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${w.date || ""}</td><td>${(parseFloat(w.withdrawn)||0).toFixed(2)}</td>`;
+        wd.appendChild(tr);
+      });
+
+      // Loans
+      const lb = document.querySelector("#loanTable tbody");
+      lb.innerHTML = "";
+      dataset.loans.forEach(l => {
+        const borrowed = parseFloat(l.borrowed) || 0;
+        const repaid = parseFloat(l.repayment) || 0;
+        let left = Math.max(borrowed - repaid, 0);
+        let late = 0;
+        const finish = l.finishDate ? new Date(l.finishDate) : null;
+        if (finish && new Date() > finish && l.status === "ongoing") {
+          late = left * 0.02;
+          left += late;
+        }
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${l.dateTaken || ""}</td>
+          <td>${(parseFloat(l.loanRequested)||0).toFixed(2)}</td>
+          <td>${borrowed.toFixed(2)}</td>
+          <td>${repaid.toFixed(2)}</td>
+          <td>${left.toFixed(2)}</td>
+          <td>${late.toFixed(2)}</td>
+          <td>${l.status || ""}</td>
+        `;
+        lb.appendChild(tr);
+      });
+    }
+
+    function goToAdmin() { window.location.href = "admin.html"; }
+    function logout() { localStorage.clear(); window.location.href = "login.html"; }
+
+    window.goToAdmin = goToAdmin;
+    window.logout = logout;
+
+    loadData();
+  </script>
+
+
+ <footer>
+    <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
+  </footer>
+
+</body>
+</html>
+
+

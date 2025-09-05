@@ -1,0 +1,16 @@
+{
+  "members": [
+    {
+      "startDate": "2025-09-02",
+      "name": "Jaladmin",
+      "email": "familybanking.realcontact@gmail.com",
+      "username": "Jal",
+      "password": "fb2025admin",
+      "role": "admin",
+      "status": "active"
+    }
+  ],
+  "weekly": [],
+  "withdrawals": [],
+  "loans": []
+}

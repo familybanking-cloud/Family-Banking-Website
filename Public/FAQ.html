@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Banking FAQ</title>
+  <style>
+    body {
+      background-color: #d21616;
+      color: #ffffff;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+
+    header {
+      background-color: rgb(0, 0, 0);
+      color: rgb(0, 0, 0);
+      padding: 15px 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    header img {
+      height: 50px;
+    }
+    nav a {
+      color: rgb(255, 247, 0);
+      text-decoration: none;
+      margin-left: 20px;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+    nav a:hover {
+      text-decoration: underline;
+      color: #ff1120;
+    }
+
+    .banner {
+      background: url("faq-banner.jpg") no-repeat center center/cover;
+      color: rgb(255, 255, 255);
+      text-align: center;
+      padding: 20px 10px;
+    }
+    .banner h1 {
+      font-size: 2rem;
+      margin: 0;
+    }
+
+    main {
+      padding: 20px 20px;
+      max-width: 900px;
+      margin: auto;
+    }
+
+    .faq-item {
+      margin-bottom: 20px;
+    }
+    .faq-question {
+      font-weight: bold;
+      color: #f2fa00;
+      cursor: pointer;
+      margin-bottom: 5px;
+    }
+    .faq-answer {
+      display: none;
+      padding-left: 15px;
+    }
+    .faq-item.active .faq-answer {
+      display: block;
+    }
+     /* Info Boxes */
+    .info-box {
+      background: #020202;
+      border-left: 5px solid rgb(0, 0, 0);
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+
+    footer {
+      background: #000000;
+       color: #f2fa00;
+      text-align: center;
+      padding: 15px;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <img src="logo.jpeg" alt="Logo">
+    <nav>
+      <a href="home.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="signup.html">Sign Up</a>
+      <a href="index.html">Log In</a>
+    </nav>
+  </header>
+
+  <section class="banner">
+    <h1>Frequently Asked Questions</h1>
+  </section>
+
+  <main>
+    <div class="info-box">
+    <div class="faq-item">
+      <div class="faq-question">👉 How much do I need to contribute each week?</div>
+      <div class="faq-answer">The minimum contribution is <strong>$500 per week</strong>, but members can give more if they choose.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 How do I make my contributions?</div>
+      <div class="faq-answer">You can contribute through <strong>bank transfer</strong> or <strong>cash</strong>. Just let the Administrator know so they can give you the necessary information. You can contact Family Banking via WhatsApp.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 Where is the money kept and tracked?</div>
+      <div class="faq-answer">All funds are stored in a <strong>group account</strong> and recorded in your own account on the <strong>website</strong>, visible with your login.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 Can I borrow money from the fund?</div>
+      <div class="faq-answer">Yes, members can request money. Your own contributions count first. Anything beyond that is considered a loan.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 How do loan repayments work?</div>
+      <div class="faq-answer">Loans must be repaid <em>separately</em> from your weekly contributions. You must still continue paying your weekly contribution while repaying your loan. If repayment is late, a <strong>2% weekly fee</strong> will be added.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 What if I join after the start date?</div>
+      <div class="faq-answer">Late joiners can only borrow up to the amount they have contributed after joining — not from earlier contributions.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 When does Family Banking officially start?</div>
+      <div class="faq-answer">We officially begin in the <strong>second week of September</strong>.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 What is the late fee amount?</div>
+      <div class="faq-answer">Late fees are <strong>2% weekly past the due date</strong>.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 Why does Family Banking matter?</div>
+      <div class="faq-answer">Family Banking helps us save together, pool resources, and support each other in times of need.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 What do we offer?</div>
+      <div class="faq-answer">We provide <strong>full transparency</strong>, keeping everyone accountable and motivated.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 When will Family Banking collect funds?</div>
+      <div class="faq-answer">Contributions are collected every <strong>Sunday</strong> at the end of the week.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 How do I access the funds?</div>
+      <div class="faq-answer">By requesting a withdrawal application form.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 How do I request a loan?</div>
+      <div class="faq-answer">Members can request up to <strong>$5000</strong> per month, provided the fund balance allows.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 What's the minimum and maximum I can borrow?</div>
+      <div class="faq-answer">The minimum is <strong>$500</strong> and the maximum is <strong>$5000</strong>, for up to one month.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 What is considered first when borrowing?</div>
+      <div class="faq-answer">Your savings (the amount you’ve contributed) are considered first. Anything above is treated as a loan.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 What are the membership rules?</div>
+      <div class="faq-answer">We officially begin in September. Only <strong>official members</strong> who sign up and contribute are eligible to borrow from the fund.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">👉 How do I join Family Banking?</div>
+      <div class="faq-answer">Click <a href="signup.html" class="button">Sign Up</a>, complete your details, and contact us via WhatsApp to finalize payment options.</div>
+    </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>© 2025 Family Banking | Saving as One, Saving as Many</p>
+  </footer>
+
+  <script>
+    const faqItems = document.querySelectorAll(".faq-item");
+    faqItems.forEach(item => {
+      item.addEventListener("click", () => {
+        item.classList.toggle("active");
+      });
+    });
+  </script>
+
+</body>
+</html>

@@ -1,72 +1,49 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 10000; // For Render
-const DATA_FILE = path.join(__dirname, "bankData.json");
+const PORT = process.env.PORT || 3000;
 
-// ---------- Middleware ----------
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
-// ---------- Helpers ----------
+// ---------- File Paths ----------
+const dataFile = path.join(__dirname, "bankData.json");
+const backupFile = path.join(__dirname, "bankData_backup.json");
+
+// ---------- Data Helpers ----------
 function readData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    const initData = { members: [], weekly: [], withdrawals: [], loans: [] };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initData, null, 2));
+  try {
+    const raw = fs.readFileSync(dataFile, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("❌ Error reading main data file:", err.message);
+
+    // Try restoring from backup if main file is corrupted/missing
+    try {
+      if (fs.existsSync(backupFile)) {
+        const backupRaw = fs.readFileSync(backupFile, "utf8");
+        console.warn("⚠ Restoring data from backup...");
+        return JSON.parse(backupRaw);
+      }
+    } catch (backupErr) {
+      console.error("❌ Error reading backup file:", backupErr.message);
+    }
+
+    // Return default structure if all fails
+    return { members: [], weekly: [], withdrawals: [], loans: [] };
   }
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
 }
 
 function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+    fs.writeFileSync(backupFile, JSON.stringify(data, null, 2)); // Keep backup in sync
+  } catch (err) {
+    console.error("❌ Error writing data:", err.message);
+  }
 }
-
-// ---------- Login ----------
-app.post("/login", (req, res) => {
-  const { username, password } = req.body;
-  const data = readData();
-
-  const user = data.members.find(
-    u => u.username === username && u.password === password
-  );
-
-  if (!user) return res.json({ success: false, message: "Invalid username or password." });
-
-  res.json({
-    success: true,
-    role: user.role,
-    name: user.name,
-    username: user.username
-  });
-});
-
-// ---------- Signup ----------
-app.post("/signup", (req, res) => {
-  const { fullname, email, username, password } = req.body;
-  if (!fullname || !email || !username || !password)
-    return res.json({ success: false, message: "All fields required." });
-
-  const data = readData();
-  if (data.members.some(u => u.username === username))
-    return res.json({ success: false, message: "Username already exists." });
-
-  const newUser = {
-    startDate: new Date().toISOString().split("T")[0],
-    name: fullname,
-    email,
-    username,
-    password,
-    role: "member",
-    status: "active"
-  };
-
-  data.members.push(newUser);
-  writeData(data);
-  res.json({ success: true });
-});
 
 // ---------- Admin ----------
 app.get("/api/admin-data", (req, res) => {
@@ -78,7 +55,6 @@ app.post("/api/admin-data", (req, res) => {
   res.json({ success: true });
 });
 
-// Change password
 app.post("/api/change-password", (req, res) => {
   const { username, oldPassword, newPassword } = req.body || {};
   if (!username || !oldPassword || !newPassword)
@@ -86,9 +62,10 @@ app.post("/api/change-password", (req, res) => {
 
   const data = readData();
   const user = data.members.find(
-    u => u.username === username && u.password === oldPassword
+    (u) => u.username === username && u.password === oldPassword
   );
-  if (!user) return res.json({ success: false, message: "Old password is incorrect" });
+  if (!user)
+    return res.json({ success: false, message: "Old password is incorrect" });
 
   user.password = newPassword;
   writeData(data);
@@ -99,17 +76,27 @@ app.post("/api/change-password", (req, res) => {
 app.get("/api/member-data/:username", (req, res) => {
   const { username } = req.params;
   const data = readData();
-  const user = data.members.find(m => m.username === username);
+  const user = data.members.find((m) => m.username === username);
   if (!user) return res.json({ success: false, message: "Member not found" });
 
-  const weekly = data.weekly.filter(w => w.member === username);
-  const withdrawals = data.withdrawals.filter(w => w.member === username);
-  const loans = data.loans ? data.loans.filter(l => l.member === username) : [];
+  const weekly = data.weekly.filter((w) => w.member === username);
+  const withdrawals = data.withdrawals.filter((w) => w.member === username);
+  const loans = data.loans ? data.loans.filter((l) => l.member === username) : [];
 
-  // Calculate balance
-  const depositsTotal = weekly.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
-  const withdrawalsTotal = withdrawals.reduce((sum, w) => sum + parseFloat(w.withdrawn || 0), 0);
-  const loansTotal = loans.reduce((sum, l) => sum + parseFloat(l.borrowed || 0), 0);
+  // Balance calculations
+  const depositsTotal = weekly.reduce(
+    (sum, w) => sum + parseFloat(w.amount || 0),
+    0
+  );
+  const withdrawalsTotal = withdrawals.reduce(
+    (sum, w) => sum + parseFloat(w.withdrawn || w.amount || 0),
+    0
+  );
+  const loansTotal = loans.reduce(
+    (sum, l) => sum + parseFloat(l.borrowed || l.loanRequested || 0),
+    0
+  );
+
   const balance = depositsTotal - withdrawalsTotal - loansTotal;
 
   res.json({
@@ -121,34 +108,32 @@ app.get("/api/member-data/:username", (req, res) => {
     depositsTotal,
     withdrawalsTotal,
     loansTotal,
-    balance
+    balance,
   });
 });
 
-// Withdraw
 app.post("/member/withdraw", (req, res) => {
   const { username, amount, date } = req.body;
   const data = readData();
 
-  if (!data.members.some(u => u.username === username))
+  if (!data.members.some((u) => u.username === username))
     return res.json({ success: false, message: "User not found." });
 
   data.withdrawals.push({
     member: username,
-    withdrawn: parseFloat(amount),
-    date: date || new Date().toISOString().split("T")[0]
+    amount: parseFloat(amount),
+    date: date || new Date().toISOString().split("T")[0],
   });
 
   writeData(data);
   res.json({ success: true });
 });
 
-// Request loan
 app.post("/member/request-loan", (req, res) => {
   const { username, amount, date } = req.body;
   const data = readData();
 
-  if (!data.members.some(u => u.username === username))
+  if (!data.members.some((u) => u.username === username))
     return res.json({ success: false, message: "User not found." });
 
   data.loans.push({
@@ -157,22 +142,30 @@ app.post("/member/request-loan", (req, res) => {
     borrowed: 0,
     repayment: 0,
     dateTaken: date || new Date().toISOString().split("T")[0],
-    status: "ongoing"
+    status: "ongoing",
   });
 
   writeData(data);
   res.json({ success: true });
 });
 
-// ---------- Serve HTML Pages ----------
-const pages = ["index","signup","login","admin","member","about","contact","FAQ","home"];
-pages.forEach(p => {
+// ---------- HTML Pages ----------
+const pages = [
+  "index",
+  "signup",
+  "login",
+  "admin",
+  "member",
+  "about",
+  "contact",
+  "FAQ",
+  "home",
+];
+pages.forEach((p) => {
   app.get(p === "index" ? "/" : `/${p}.html`, (req, res) => {
     res.sendFile(path.join(__dirname, "public", `${p}.html`));
   });
 });
 
-// ---------- Start server ----------
+// ---------- Start Server ----------
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
-

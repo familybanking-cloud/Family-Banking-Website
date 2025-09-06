@@ -145,6 +145,11 @@
   <input type="password" id="adminNewPass" placeholder="New Password">
   <button onclick="changeAdminPassword()">Change Password</button>
 </section>
+<div style="margin-top:20px; padding:10px; border:1px solid #ccc;">
+  <h3>Backup & Restore</h3>
+  <select id="backupSelect"></select>
+  <button onclick="restoreBackup()">Restore Backup</button>
+</div>
 <script>
 window.onload = async function() {
   const role = localStorage.getItem("role");

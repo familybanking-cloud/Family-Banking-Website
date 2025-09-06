@@ -145,244 +145,210 @@
   <input type="password" id="adminNewPass" placeholder="New Password">
   <button onclick="changeAdminPassword()">Change Password</button>
 </section>
-
 <script>
-    // ---------- Gate ----------
-    window.onload = function() {
-      const role = localStorage.getItem("role");
-      if (role !== "admin") {
-        alert("Access denied. Admins only.");
-        window.location.href = "index.html";
-        return;
-      }
-      loadData();
-    };
+window.onload = async function() {
+  const role = localStorage.getItem("role");
+  if (role !== "admin") {
+    alert("Access denied. Admins only.");
+    window.location.href = "index.html";
+    return;
+  }
+  await loadData();
+};
 
-    // ---------- Data ----------
-    let data = { members: [], weekly: [], withdrawals: [], loans: [] };
+// ---------- Data ----------
+let data = { members: [], weekly: [], withdrawals: [], loans: [] };
 
-    // ---------- Load ----------
-    async function loadData() {
-      try {
-        const res = await fetch('/api/admin-data');
-        data = await res.json();
-        renderAll();
-      } catch (err) { console.error("Error loading data:", err); }
+// ---------- Load ----------
+async function loadData() {
+  try {
+    const res = await fetch('/api/admin-data');
+    data = await res.json();
+    renderAll();
+  } catch (err) { console.error("Error loading data:", err); }
+}
+
+// ---------- Balances ----------
+function getMemberBalances() {
+  const balances = {};
+  data.members.forEach(m => balances[m.username || m.name] = 0);
+
+  data.weekly.forEach(w => {
+    if (!balances[w.member]) balances[w.member] = 0;
+    balances[w.member] += parseFloat(w.amount) || 0;
+  });
+
+  data.withdrawals.forEach(w => {
+    if (!balances[w.member]) balances[w.member] = 0;
+    balances[w.member] -= parseFloat(w.withdrawn) || 0;
+  });
+
+  data.loans.forEach(l => {
+    if (!balances[l.member]) balances[l.member] = 0;
+    const borrowed = parseFloat(l.borrowed || 0);
+    const repaid = parseFloat(l.repayment || 0);
+    balances[l.member] -= borrowed;
+    balances[l.member] += repaid;
+  });
+
+  return balances;
+}
+
+// ---------- Render Functions ----------
+function renderMembers() {
+  const tbody = document.querySelector("#membersTable tbody");
+  tbody.innerHTML = "";
+  data.members.forEach((m,i) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input value="${m.startDate || ''}" type="date" onchange="updateMember(${i}, 'startDate', this.value)"></td>
+      <td><input value="${m.name || ''}" type="text" onchange="updateMember(${i}, 'name', this.value)"></td>
+      <td>
+        <select onchange="updateMember(${i}, 'status', this.value)">
+          <option value="active" ${m.status==="active"?"selected":""}>Active</option>
+          <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
+        </select>
+      </td>
+      <td><button onclick="deleteRow('members',${i})">Delete</button></td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function renderWeekly() {
+  const tbody = document.querySelector("#weeklyTable tbody");
+  tbody.innerHTML = "";
+  const balances = getMemberBalances();
+
+  data.weekly.forEach((w,i) => {
+    const current = balances[w.member] || 0;
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="text" value="${w.member || ''}" placeholder="username" onchange="updateWeekly(${i}, 'member', this.value)"></td>
+      <td><input type="date" value="${w.date || ''}" onchange="updateWeekly(${i}, 'date', this.value)"></td>
+      <td><input type="number" value="${w.amount || 0}" onchange="updateWeekly(${i}, 'amount', this.value)"></td>
+      <td>${current.toFixed(2)}</td>
+      <td><button onclick="deleteRow('weekly',${i})">Delete</button></td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function renderWithdrawals() {
+  const tbody = document.querySelector("#withdrawalTable tbody");
+  tbody.innerHTML = "";
+  const balances = getMemberBalances();
+
+  data.withdrawals.forEach((w,i) => {
+    const current = balances[w.member] || 0;
+    const after = current - (parseFloat(w.withdrawn)||0);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="text" value="${w.member || ''}" placeholder="username" onchange="updateWithdrawal(${i}, 'member', this.value)"></td>
+      <td>${current.toFixed(2)}</td>
+      <td><input type="number" value="${w.withdrawn || 0}" onchange="updateWithdrawal(${i}, 'withdrawn', this.value)"></td>
+      <td><input type="date" value="${w.date || ''}" onchange="updateWithdrawal(${i}, 'date', this.value)"></td>
+      <td>${after.toFixed(2)}</td>
+      <td><button onclick="deleteRow('withdrawals',${i})">Delete</button></td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function renderLoans() {
+  const tbody = document.querySelector("#loanTable tbody");
+  tbody.innerHTML = "";
+
+  data.loans.forEach((l,i) => {
+    const borrowed = parseFloat(l.borrowed) || 0;
+    const repaid = parseFloat(l.repayment) || 0;
+    let loanLeft = Math.max(borrowed - repaid, 0);
+    let lateFee = 0;
+
+    const today = new Date();
+    const finish = l.finishDate ? new Date(l.finishDate) : null;
+    if (finish && today > finish && l.status === "ongoing") {
+      lateFee = loanLeft * 0.02;
+      loanLeft += lateFee;
     }
 
-    // ---------- Balances ----------
-    function getMemberBalances() {
-      const balances = {};
-      data.members.forEach(m => balances[m.username || m.name] = 0); // fallback
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="date" value="${l.dateTaken || ''}" onchange="updateLoan(${i}, 'dateTaken', this.value)"></td>
+      <td><input type="text" value="${l.member || ''}" placeholder="username" onchange="updateLoan(${i}, 'member', this.value)"></td>
+      <td><input type="number" value="${l.loanRequested || 0}" onchange="updateLoan(${i}, 'loanRequested', this.value)"></td>
+      <td><input type="number" value="${borrowed}"></td>
+      <td><input type="number" value="${repaid}" onchange="updateLoan(${i}, 'repayment', this.value)"></td>
+      <td><input type="date" value="${l.dueDate || ''}" onchange="updateLoan(${i}, 'dueDate', this.value)"></td>
+      <td><input type="date" value="${l.finishDate || ''}" onchange="updateLoan(${i}, 'finishDate', this.value)"></td>
+      <td>${loanLeft.toFixed(2)}</td>
+      <td>${lateFee.toFixed(2)}</td>
+      <td>
+        <select onchange="updateLoan(${i}, 'status', this.value)">
+          <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
+          <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
+        </select>
+      </td>
+      <td><button onclick="deleteRow('loans',${i})">Delete</button></td>
+    `;
+    tbody.appendChild(row);
+  });
+}
 
-      data.weekly.forEach(w => {
-        if (!balances[w.member]) balances[w.member] = 0;
-        balances[w.member] += parseFloat(w.amount) || 0;
-      });
+// ---------- Add/Delete ----------
+function addMemberRow() { data.members.push({ startDate:"", name:"", status:"active" }); renderMembers(); }
+function addWeeklyRow() { data.weekly.push({ member:"", date:"", amount:0 }); renderWeekly(); }
+function addWithdrawalRow() { data.withdrawals.push({ member:"", withdrawn:0, date:"" }); renderWithdrawals(); }
+function addLoanRow() { data.loans.push({ dateTaken:"", member:"", loanRequested:0, borrowed:0, repayment:0, dueDate:"", finishDate:"", status:"ongoing" }); renderLoans(); }
+function deleteRow(section, index) { data[section].splice(index,1); saveDataToBackend(); }
 
-      data.withdrawals.forEach(w => {
-        if (!balances[w.member]) balances[w.member] = 0;
-        balances[w.member] -= parseFloat(w.withdrawn) || 0;
-      });
+// ---------- Update Functions ----------
+function updateMember(i, key, value) { data.members[i][key] = value; saveDataToBackend(false); }
+function updateWeekly(i, key, value) { data.weekly[i][key] = value; saveDataToBackend(false); }
+function updateWithdrawal(i, key, value) { data.withdrawals[i][key] = key==="withdrawn"?parseFloat(value):value; saveDataToBackend(false); }
+function updateLoan(i, key, value) { 
+  data.loans[i][key] = (key==="loanRequested" || key==="borrowed" || key==="repayment") ? parseFloat(value) : value; 
+  saveDataToBackend(false); 
+}
 
-      data.loans.forEach(l => {
-        if (!balances[l.member]) balances[l.member] = 0;
-        // Use approved "borrowed" amount for impact
-        const approved = parseFloat(l.borrowed) || 0;
-        balances[l.member] -= approved;
-        balances[l.member] += parseFloat(l.repayment || 0); // repayments add back
-      });
+// ---------- Save ----------
+async function saveDataToBackend(showAlert=true) {
+  try {
+    await fetch('/api/admin-data', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(data)
+    });
+    if(showAlert) alert("Saved.");
+    renderAll();
+  } catch(err) {
+    console.error("Error saving data:", err);
+    alert("Error saving data to server.");
+  }
+}
 
-      return balances;
-    }
+// ---------- Render All ----------
+function renderAll() {
+  renderMembers();
+  renderWeekly();
+  renderWithdrawals();
+  renderLoans();
+}
 
-    // ---------- Render ----------
-    function renderMembers() {
-      const tbody = document.querySelector("#membersTable tbody");
-      tbody.innerHTML = "";
-      data.members.forEach((m,i) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td><input value="${m.startDate || ''}" type="date"></td>
-          <td><input value="${m.name || ''}" type="text"></td>
-          <td>
-            <select>
-              <option value="active" ${m.status==="active"?"selected":""}>Active</option>
-              <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
-            </select>
-          </td>
-          <td><button onclick="deleteRow('members',${i})">Delete</button></td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
+// ---------- Navigation ----------
+function goToMemberPage() { window.location.href = "member.html"; }
+function logout() { localStorage.clear(); window.location.href = "index.html"; }
+window.addMemberRow = addMemberRow;
+window.addWeeklyRow = addWeeklyRow;
+window.addWithdrawalRow = addWithdrawalRow;
+window.addLoanRow = addLoanRow;
+window.deleteRow = deleteRow;
+window.saveDataToBackend = saveDataToBackend;
+window.goToMemberPage = goToMemberPage;
+window.logout = logout;
+</script>
 
-    function renderWeekly() {
-      const tbody = document.querySelector("#weeklyTable tbody");
-      tbody.innerHTML = "";
-      const balances = getMemberBalances();
 
-      data.weekly.forEach((w,i) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td><input type="text" value="${w.member || ''}" placeholder="username"></td>
-          <td><input type="date" value="${w.date || ''}"></td>
-          <td><input type="number" value="${w.amount || 0}"></td>
-          <td>${(balances[w.member] || 0).toFixed(2)}</td>
-          <td><button onclick="deleteRow('weekly',${i})">Delete</button></td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
-
-    function renderWithdrawals() {
-      const tbody = document.querySelector("#withdrawalTable tbody");
-      tbody.innerHTML = "";
-      const balances = getMemberBalances();
-
-      data.withdrawals.forEach((w,i) => {
-        const current = balances[w.member] || 0;
-        const after = current - (parseFloat(w.withdrawn) || 0);
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td><input type="text" value="${w.member || ''}" placeholder="username"></td>
-          <td>${current.toFixed(2)}</td>
-          <td><input type="number" value="${w.withdrawn || 0}"></td>
-          <td><input type="date" value="${w.date || ''}"></td>
-          <td>${after.toFixed(2)}</td>
-          <td><button onclick="deleteRow('withdrawals',${i})">Delete</button></td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
-
-    function renderLoans() {
-      const tbody = document.querySelector("#loanTable tbody");
-      tbody.innerHTML = "";
-      data.loans.forEach((l,i) => {
-        const borrowed = parseFloat(l.borrowed) || 0;
-        const repaid = parseFloat(l.repayment) || 0;
-        let loanLeft = Math.max(borrowed - repaid, 0);
-        let lateFee = 0;
-
-        const today = new Date();
-        const finish = l.finishDate ? new Date(l.finishDate) : null;
-        if (finish && today > finish && l.status === "ongoing") {
-          lateFee = loanLeft * 0.02;
-          loanLeft += lateFee;
-        }
-
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td><input type="date" value="${l.dateTaken || ''}"></td>
-          <td><input type="text" value="${l.member || ''}" placeholder="username"></td>
-          <td><input type="number" value="${l.loanRequested || 0}"></td>
-          <td><input type="number" value="${borrowed}"></td>
-          <td><input type="number" value="${repaid}"></td>
-          <td><input type="date" value="${l.dueDate || ''}"></td>
-          <td><input type="date" value="${l.finishDate || ''}"></td>
-          <td>${loanLeft.toFixed(2)}</td>
-          <td>${lateFee.toFixed(2)}</td>
-          <td>${loanLeft.toFixed(2)}</td>
-          <td>
-            <select>
-              <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
-              <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
-            </select>
-          </td>
-          <td><button onclick="deleteRow('loans',${i})">Delete</button></td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
-
-    // ---------- Add/Delete ----------
-    function addMemberRow() {
-      data.members.push({ startDate: "", name: "", status: "active" });
-      renderMembers();
-    }
-    function addWeeklyRow() {
-      data.weekly.push({ member: "", date: "", amount: 0 });
-      renderWeekly();
-    }
-    function addWithdrawalRow() {
-      data.withdrawals.push({ member: "", withdrawn: 0, date: "" });
-      renderWithdrawals();
-    }
-    function addLoanRow() {
-      data.loans.push({
-        dateTaken: "", member: "", loanRequested: 0, borrowed: 0,
-        repayment: 0, dueDate: "", finishDate: "", status: "ongoing"
-      });
-      renderLoans();
-    }
-    function deleteRow(section, index) {
-      data[section].splice(index, 1);
-      renderAll();
-      saveDataToBackend();
-    }
-
-    // ---------- Save ----------
-    async function saveDataToBackend() {
-      try {
-        await fetch('/api/admin-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        alert("Saved.");
-      } catch (err) {
-        console.error("Error saving data:", err);
-        alert("Error saving data to server.");
-      }
-      renderAll();
-    }
-
-    // ---------- Render All ----------
-    function renderAll() {
-      renderMembers();
-      renderWeekly();
-      renderWithdrawals();
-      renderLoans();
-    }
-
-    // ---------- Navigation ----------
-    function goToMemberPage() {
-      window.location.href = "member.html";
-    }
-    function logout() {
-      localStorage.clear();
-      window.location.href = "login.html";
-    }
-
-    // ---------- Password ----------
-    async function changeAdminPassword() {
-      const username = localStorage.getItem("loggedInUser") || "Jal"; // default admin
-      const oldPassword = document.getElementById('adminOldPass').value;
-      const newPassword = document.getElementById('adminNewPass').value;
-      if (!oldPassword || !newPassword) { alert('Please fill both fields'); return; }
-      try {
-        const res = await fetch('/api/change-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, oldPassword, newPassword })
-        });
-        const result = await res.json();
-        alert(result.message);
-      } catch (err) { console.error(err); alert('Error changing password'); }
-    }
-
-    // Expose to HTML buttons
-    window.addMemberRow = addMemberRow;
-    window.addWeeklyRow = addWeeklyRow;
-    window.addWithdrawalRow = addWithdrawalRow;
-    window.addLoanRow = addLoanRow;
-    window.deleteRow = deleteRow;
-    window.saveDataToBackend = saveDataToBackend;
-    window.goToMemberPage = goToMemberPage;
-    window.logout = logout;
-    window.changeAdminPassword = changeAdminPassword;
-  </script>
 
  <footer>
     <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>

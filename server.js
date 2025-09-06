@@ -25,23 +25,37 @@ function writeData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-// ---------- Auth ----------
+// ---------- login ----------
 app.post("/login", (req, res) => {
   const { username, password } = req.body;
   const data = readData();
+  
   const user = data.members.find(u => u.username === username && u.password === password);
-  if (!user) return res.json({ success: false, message: "Invalid username or password." });
-  res.json({ success: true, role: user.role, name: user.name, username: user.username });
+
+  if (!user) 
+    return res.json({ success: false, message: "Invalid username or password." });
+
+  res.json({ 
+    success: true, 
+    role: user.role, 
+    name: user.name, 
+    username: user.username 
+  });
 });
 
+//signup 
 app.post("/signup", (req, res) => {
   const { fullname, email, username, password } = req.body;
-  if (!fullname || !email || !username || !password) return res.json({ success: false, message: "All fields required." });
+  
+  if (!fullname || !email || !username || !password)
+    return res.json({ success: false, message: "All fields required." });
 
   const data = readData();
-  if (data.members.some(u => u.username === username)) return res.json({ success: false, message: "Username already exists." });
 
-  data.members.push({
+  if (data.members.some(u => u.username === username))
+    return res.json({ success: false, message: "Username already exists." });
+
+  const newUser = {
     startDate: new Date().toISOString().split("T")[0],
     name: fullname,
     email,
@@ -49,8 +63,11 @@ app.post("/signup", (req, res) => {
     password,
     role: "member",
     status: "active"
-  });
+  };
+
+  data.members.push(newUser);
   writeData(data);
+
   res.json({ success: true });
 });
 

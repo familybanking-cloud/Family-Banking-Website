@@ -8,10 +8,36 @@
       "password": "fbadmin2025",
       "role": "admin",
       "status": "active"
+    },
+    {
+      "startDate": "2025-09-06",
+      "name": "Tested",
+      "email": "Highuninotes@gmail.com",
+      "username": "Tested",
+      "password": "@2025",
+      "role": "member",
+      "status": "active"
+    },
+    {
+      "startDate": "2025-09-06",
+      "name": "family",
+      "email": "Highuninotes@gmail.com",
+      "username": "family",
+      "password": "@2025",
+      "role": "member",
+      "status": "active"
+    },
+    {
+      "startDate": "2025-09-06",
+      "name": "Test",
+      "email": "Highuninotes@gmail.com",
+      "username": "Test",
+      "password": "@2025",
+      "role": "member",
+      "status": "active"
     }
   ],
   "weekly": [],
   "withdrawals": [],
   "loans": []
 }
-

@@ -4,87 +4,14 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 10000; // Render port
+const PORT = process.env.PORT || 10000; // For Render
 const DATA_FILE = path.join(__dirname, "bankData.json");
 
-// Middleware
+// ---------- Middleware ----------
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public"))); // Serve HTML/CSS/JS
+app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
 
-// ---------- Helper ----------
-function readData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    const initData = { members: [], weekly: [], withdrawals: [], loans: [] };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initData, null, 2));
-  }
-  const data = fs.readFileSync(DATA_FILE, "utf-8");
-  return JSON.parse(data);
-}
-
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
-
-// ---------- login ----------
-app.post("/login", (req, res) => {
-  const { username, password } = req.body;
-  const data = readData();
-  
-  const user = data.members.find(u => u.username === username && u.password === password);
-
-  if (!user) 
-    return res.json({ success: false, message: "Invalid username or password." });
-
-  res.json({ 
-    success: true, 
-    role: user.role, 
-    name: user.name, 
-    username: user.username 
-  });
-});
-
-//signup 
-app.post("/signup", (req, res) => {
-  const { fullname, email, username, password } = req.body;
-  
-  if (!fullname || !email || !username || !password)
-    return res.json({ success: false, message: "All fields required." });
-
-  const data = readData();
-
-  if (data.members.some(u => u.username === username))
-    return res.json({ success: false, message: "Username already exists." });
-
-  const newUser = {
-    startDate: new Date().toISOString().split("T")[0],
-    name: fullname,
-    email,
-    username,
-    password,
-    role: "member",
-    status: "active"
-  };
-
-  data.members.push(newUser);
-  writeData(data);
-
-  res.json({ success: true });
-});
-
-const express = require("express");
-const bodyParser = require("body-parser");
-const fs = require("fs");
-const path = require("path");
-
-const app = express();
-const PORT = process.env.PORT || 10000;
-const DATA_FILE = path.join(__dirname, "bankData.json");
-
-// Middleware
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public")));
-
-// ---------- Helper ----------
+// ---------- Helpers ----------
 function readData() {
   if (!fs.existsSync(DATA_FILE)) {
     const initData = { members: [], weekly: [], withdrawals: [], loans: [] };
@@ -101,9 +28,19 @@ function writeData(data) {
 app.post("/login", (req, res) => {
   const { username, password } = req.body;
   const data = readData();
-  const user = data.members.find(u => u.username === username && u.password === password);
+
+  const user = data.members.find(
+    u => u.username === username && u.password === password
+  );
+
   if (!user) return res.json({ success: false, message: "Invalid username or password." });
-  res.json({ success: true, role: user.role, name: user.name, username: user.username });
+
+  res.json({
+    success: true,
+    role: user.role,
+    name: user.name,
+    username: user.username
+  });
 });
 
 // ---------- Signup ----------
@@ -141,12 +78,16 @@ app.post("/api/admin-data", (req, res) => {
   res.json({ success: true });
 });
 
+// Change password
 app.post("/api/change-password", (req, res) => {
   const { username, oldPassword, newPassword } = req.body || {};
-  if (!username || !oldPassword || !newPassword) return res.json({ success: false, message: "Missing fields." });
+  if (!username || !oldPassword || !newPassword)
+    return res.json({ success: false, message: "Missing fields." });
 
   const data = readData();
-  const user = data.members.find(u => u.username === username && u.password === oldPassword);
+  const user = data.members.find(
+    u => u.username === username && u.password === oldPassword
+  );
   if (!user) return res.json({ success: false, message: "Old password is incorrect" });
 
   user.password = newPassword;
@@ -184,6 +125,7 @@ app.get("/api/member-data/:username", (req, res) => {
   });
 });
 
+// Withdraw
 app.post("/member/withdraw", (req, res) => {
   const { username, amount, date } = req.body;
   const data = readData();
@@ -201,6 +143,7 @@ app.post("/member/withdraw", (req, res) => {
   res.json({ success: true });
 });
 
+// Request loan
 app.post("/member/request-loan", (req, res) => {
   const { username, amount, date } = req.body;
   const data = readData();
@@ -224,11 +167,12 @@ app.post("/member/request-loan", (req, res) => {
 // ---------- Serve HTML Pages ----------
 const pages = ["index","signup","login","admin","member","about","contact","FAQ","home"];
 pages.forEach(p => {
-  app.get(p === "index" ? "/" : `/${p}.html`, (req,res) => {
+  app.get(p === "index" ? "/" : `/${p}.html`, (req, res) => {
     res.sendFile(path.join(__dirname, "public", `${p}.html`));
   });
 });
 
 // ---------- Start server ----------
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 

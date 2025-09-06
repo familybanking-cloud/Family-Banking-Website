@@ -2,11 +2,20 @@
   "members": [
     {
       "startDate": "2025-09-02",
-      "name": "Jaladmin",
-      "email": "familybanking.realcontact@gmail.com",
-      "username": "Jal",
-      "password": "fb2025admin",
+      "name": "admin",
+      "email": "family@gmail.com",
+      "username": "al",
+      "password": "admin",
       "role": "admin",
+      "status": "active"
+    },
+    {
+      "startDate": "2025-09-05",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "username": "john",
+      "password": "john123",
+      "role": "member",
       "status": "active"
     }
   ],

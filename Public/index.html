@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <style>
+    /* General Styles */
+    body {
+      background-color: hsl(0, 81%, 45%);
+      color: #ffffff;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+
+    /* Header style */
+    header {
+      background-color: rgb(4, 4, 4);
+      padding: 15px 30px;
+      display: flex; 
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    header img {
+      height: 50px;
+    }
+    
+    /* Navigation style */
+    nav a {
+      color: rgb(255, 247, 0);
+      text-decoration: none;
+      margin-left: 20px;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+    nav a:hover {
+      text-decoration: underline;
+      color: #ff1120;
+    }
+
+    /* Login section */
+    .login-section {
+      max-width: 300px; 
+      margin: 50px auto;
+      padding: 30px; 
+      background: black;
+      border-radius: 10px; 
+      color: rgb(240, 236, 0);
+      text-align: center;
+    }
+
+    .login-section input[type="text"],
+    .login-section input[type="password"],
+    .login-section select {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #fbff03;
+      border-radius: 5px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #f2ff00;
+      border: none;
+      color: rgb(13, 13, 13);
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold; 
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #d21616;
+      color: white;
+    }
+
+    label {
+      cursor: pointer; 
+      display: block; 
+      margin: 10px 0;
+    }
+
+    .signup-text {
+      margin-top: 10px;
+      color: #ff0000;
+    }
+    .signup-text a {
+      color: #ff0000;
+      text-decoration: none;
+    }
+    .signup-text a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <img src="logo.jpeg" alt="Family Banking Logo">
+    </div>
+    <nav>
+      <a href="home.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="FAQ.html">FAQ</a>
+    </nav>
+  </header>
+
+  <div class="login-section">
+    <h2>Family Banking Login</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <label>
+      <input type="checkbox" id="showLoginPassword"> Show Password
+    </label>
+    <select id="roleSelect">
+      <option value="member">Member</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button onclick="login()">Login</button>
+    <p class="signup-text">
+      Don’t have an account? <a href="signup.html">Sign up</a>
+    </p>
+  </div>
+
+  <script>
+    async function login() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      const response = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Redirect based on role
+        if (data.role === "admin") {
+          window.location.href = "/admin";
+        } else {
+          window.location.href = "/member";
+        }
+      } else {
+        document.getElementById("errorMsg").innerText = data.message;
+      }
+    }
+  </script>
+</body>
+</html>

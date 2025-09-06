@@ -96,52 +96,50 @@
   <!-- Add this inside your signup page just before </body> -->
 <p id="message" style="color:red; text-align:center; margin-top:10px;"></p>
 
+<footer>
+    <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
+  </footer>
+
 <script>
-async function signUp() {
+document.getElementById("showSignupPassword").addEventListener("change", function() {
+  const pass = document.getElementById("signupPassword");
+  const confirmPass = document.getElementById("signupConfirmPassword");
+  pass.type = confirmPass.type = this.checked ? "text" : "password";
+});
+
+document.getElementById("signupBtn").addEventListener("click", async function() {
   const fullname = document.getElementById("signupName").value.trim();
   const email = document.getElementById("signupEmail").value.trim();
   const username = document.getElementById("signupUsername").value.trim();
   const password = document.getElementById("signupPassword").value;
   const confirmPassword = document.getElementById("signupConfirmPassword").value;
-
   const msg = document.getElementById("message");
   msg.textContent = "";
 
-  // Basic validation
-  if (!fullname || !email || !username || !password || !confirmPassword) {
-    msg.textContent = "Please fill all fields.";
-    return;
+  if(!fullname || !email || !username || !password || !confirmPassword){
+    msg.textContent = "Please fill all fields"; return;
   }
-
-  if (password !== confirmPassword) {
-    msg.textContent = "Passwords do not match.";
-    return;
-  }
+  if(password !== confirmPassword){ msg.textContent = "Passwords do not match"; return; }
 
   try {
     const res = await fetch("/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullname, email, username, password })
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ fullname, email, username, password })
     });
-
-    const result = await res.json();
-
-    if (result.success) {
+    const data = await res.json();
+    if(data.success){
       alert("Signup successful! Please log in.");
-      window.location.href = "index.html"; // redirect to login page
+      window.location.href = "index.html";
     } else {
-      msg.textContent = result.message || "Signup failed.";
+      msg.textContent = data.message;
     }
-  } catch (e) {
-    console.error(e);
+  } catch(err){
     msg.textContent = "Server error. Try again later.";
+    console.error(err);
   }
-}
+});
 </script>
-
-  <footer>
-    <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
-  </footer>
+  
 </body>
 </html>

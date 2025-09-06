@@ -174,9 +174,9 @@ app.get("/contact", (req, res) => res.sendFile(path.join(__dirname, "public", "c
 app.get("/FAQ", (req, res) => res.sendFile(path.join(__dirname, "public", "FAQ.html")));
 app.get("/home", (req, res) => res.sendFile(path.join(__dirname, "public", "home.html")));
 
-// ---------- Start server ----------
-const PORT = process.env.PORT || 10000; // use Render's assigned port
+});
+
+const PORT = process.env.PORT || 10000; // Use Render's port if available
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-

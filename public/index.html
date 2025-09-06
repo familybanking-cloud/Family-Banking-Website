@@ -128,30 +128,44 @@
     </p>
   </div>
 
-  <script>
-    async function login() {
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
+ <script>
+async function login() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const role = document.getElementById("roleSelect").value;
 
-      const response = await fetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
-      });
+  const errorMsg = document.getElementById("errorMsg");
+  errorMsg.textContent = "";
 
-      const data = await response.json();
+  if (!username || !password) {
+    errorMsg.textContent = "Please enter both username and password.";
+    return;
+  }
 
-      if (data.success) {
-        // Redirect based on role
-        if (data.role === "admin") {
-          window.location.href = "/admin";
-        } else {
-          window.location.href = "/member";
-        }
+  try {
+    const res = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, role })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      // Redirect to the correct page based on role
+      if (role === "admin") {
+        window.location.href = "admin.html";
       } else {
-        document.getElementById("errorMsg").innerText = data.message;
+        window.location.href = "member.html";
       }
+    } else {
+      errorMsg.textContent = data.message || "Invalid credentials.";
     }
-  </script>
+  } catch (e) {
+    console.error(e);
+    errorMsg.textContent = "Server error. Try again later.";
+  }
+}
+</script>
 </body>
 </html>

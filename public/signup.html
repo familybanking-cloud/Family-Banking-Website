@@ -93,40 +93,53 @@
 </div>
 
 
-  <script>
-    async function signup() {
-      const fullname = document.getElementById("fullname").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const username = document.getElementById("username").value.trim();
-      const password = document.getElementById("password").value;
+  <!-- Add this inside your signup page just before </body> -->
+<p id="message" style="color:red; text-align:center; margin-top:10px;"></p>
 
-      const msg = document.getElementById("message");
-      msg.textContent = "";
+<script>
+async function signUp() {
+  const fullname = document.getElementById("signupName").value.trim();
+  const email = document.getElementById("signupEmail").value.trim();
+  const username = document.getElementById("signupUsername").value.trim();
+  const password = document.getElementById("signupPassword").value;
+  const confirmPassword = document.getElementById("signupConfirmPassword").value;
 
-      if (!fullname || !email || !username || !password) {
-        msg.textContent = "Please fill all fields.";
-        return;
-      }
+  const msg = document.getElementById("message");
+  msg.textContent = "";
 
-      try {
-        const res = await fetch("/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fullname, email, username, password })
-        });
-        const result = await res.json();
-        if (result.success) {
-          alert("Signup successful! Please log in.");
-          window.location.href = "login.html";
-        } else {
-          msg.textContent = result.message || "Signup failed.";
-        }
-      } catch (e) {
-        console.error(e);
-        msg.textContent = "Server error. Try again.";
-      }
+  // Basic validation
+  if (!fullname || !email || !username || !password || !confirmPassword) {
+    msg.textContent = "Please fill all fields.";
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    msg.textContent = "Passwords do not match.";
+    return;
+  }
+
+  try {
+    const res = await fetch("/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullname, email, username, password })
+    });
+
+    const result = await res.json();
+
+    if (result.success) {
+      alert("Signup successful! Please log in.");
+      window.location.href = "index.html"; // redirect to login page
+    } else {
+      msg.textContent = result.message || "Signup failed.";
     }
-  </script>
+  } catch (e) {
+    console.error(e);
+    msg.textContent = "Server error. Try again later.";
+  }
+}
+</script>
+
   <footer>
     <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
   </footer>

@@ -175,4 +175,8 @@ app.get("/FAQ", (req, res) => res.sendFile(path.join(__dirname, "public", "FAQ.h
 app.get("/home", (req, res) => res.sendFile(path.join(__dirname, "public", "home.html")));
 
 // ---------- Start server ----------
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+const PORT = process.env.PORT || 10000; // use Render's assigned port
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+

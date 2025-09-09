@@ -165,8 +165,10 @@ if (!username || role !== "member") {
 }
 
 document.getElementById("memberName").innerText = displayName;
+
 let dataset = { weekly: [], withdrawals: [], loans: [] };
 
+// ---------- Load Data ----------
 async function loadData() {
   try {
     const res = await fetch(`/api/member-data/${encodeURIComponent(username)}`);
@@ -180,6 +182,7 @@ async function loadData() {
   }
 }
 
+// ---------- Calculate Balance ----------
 function calculateBalance() {
   let total = 0;
   dataset.weekly.forEach(w => total += parseFloat(w.amount) || 0);
@@ -193,6 +196,7 @@ function calculateBalance() {
   return total;
 }
 
+// ---------- Render ----------
 function render() {
   document.getElementById("currentBalance").innerText = calculateBalance().toFixed(2);
 
@@ -233,9 +237,54 @@ function render() {
   });
 }
 
-function logout() { localStorage.clear(); window.location.href = "index.html"; }
+// ---------- Request Withdrawal ----------
+async function requestWithdrawal(amount) {
+  try {
+    const res = await fetch('/member/withdraw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, amount, date: new Date().toISOString().split("T")[0] })
+    });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.message || "Failed to withdraw");
+    alert("Withdrawal successful!");
+    await loadData();
+  } catch(err) {
+    console.error(err);
+    alert("Error requesting withdrawal.");
+  }
+}
 
+// ---------- Request Loan ----------
+async function requestLoan(amount) {
+  try {
+    const res = await fetch('/member/request-loan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, amount, date: new Date().toISOString().split("T")[0] })
+    });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.message || "Failed to request loan");
+    alert("Loan request submitted!");
+    await loadData();
+  } catch(err) {
+    console.error(err);
+    alert("Error requesting loan.");
+  }
+}
+
+// ---------- Logout ----------
+function logout() {
+  localStorage.clear();
+  window.location.href = "index.html";
+}
+
+// ---------- Expose Functions ----------
 window.logout = logout;
+window.requestWithdrawal = requestWithdrawal;
+window.requestLoan = requestLoan;
+
+// Load data initially
 loadData();
 </script>
 

@@ -1,170 +1,179 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const fs = require("fs");
 const path = require("path");
+const { MongoClient, ObjectId } = require("mongodb");
 
 const app = express();
-const PORT = process.env.PORT || 10000; // For Render
-const DATA_FILE = path.join(__dirname, "bankData.json");
+const PORT = process.env.PORT || 10000;
+
+// ---------- MongoDB Setup ----------
+const uri = "mongodb+srv://familybanking:@workadminfb2025website@cluster0.ujmi3xs.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+const client = new MongoClient(uri);
+let db;
+
+async function connectDB() {
+  try {
+    await client.connect();
+    db = client.db("familyBankingDB");
+    console.log("✅ Connected to MongoDB Atlas");
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err);
+  }
+}
+connectDB();
 
 // ---------- Middleware ----------
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
-
-// ---------- Helpers ----------
-function readData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    const initData = { members: [], weekly: [], withdrawals: [], loans: [] };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initData, null, 2));
-  }
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-}
-
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
+app.use(express.static(path.join(__dirname, "public")));
 
 // ---------- Login ----------
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  const data = readData();
+  try {
+    const user = await db.collection("members").findOne({ username, password });
+    if (!user) return res.json({ success: false, message: "Invalid username or password." });
 
-  const user = data.members.find(
-    u => u.username === username && u.password === password
-  );
-
-  if (!user) return res.json({ success: false, message: "Invalid username or password." });
-
-  res.json({
-    success: true,
-    role: user.role,
-    name: user.name,
-    username: user.username
-  });
+    res.json({
+      success: true,
+      role: user.role,
+      name: user.name,
+      username: user.username
+    });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 // ---------- Signup ----------
-app.post("/signup", (req, res) => {
+app.post("/signup", async (req, res) => {
   const { fullname, email, username, password } = req.body;
   if (!fullname || !email || !username || !password)
     return res.json({ success: false, message: "All fields required." });
 
-  const data = readData();
-  if (data.members.some(u => u.username === username))
-    return res.json({ success: false, message: "Username already exists." });
+  try {
+    const exists = await db.collection("members").findOne({ username });
+    if (exists) return res.json({ success: false, message: "Username already exists." });
 
-  const newUser = {
-    startDate: new Date().toISOString().split("T")[0],
-    name: fullname,
-    email,
-    username,
-    password,
-    role: "member",
-    status: "active"
-  };
+    const newUser = {
+      startDate: new Date().toISOString().split("T")[0],
+      name: fullname,
+      email,
+      username,
+      password,
+      role: "member",
+      status: "active"
+    };
 
-  data.members.push(newUser);
-  writeData(data);
-  res.json({ success: true });
+    await db.collection("members").insertOne(newUser);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ---------- Admin ----------
-app.get("/api/admin-data", (req, res) => {
-  res.json(readData());
+// ---------- Admin API ----------
+app.get("/api/admin-data", async (req, res) => {
+  try {
+    const members = await db.collection("members").find({}).toArray();
+    const weekly = await db.collection("weekly").find({}).toArray();
+    const withdrawals = await db.collection("withdrawals").find({}).toArray();
+    const loans = await db.collection("loans").find({}).toArray();
+
+    res.json({ members, weekly, withdrawals, loans });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-app.post("/api/admin-data", (req, res) => {
-  writeData(req.body);
-  res.json({ success: true });
+// ---------- Admin Collections Endpoints ----------
+app.post("/api/admin-data/:collection", async (req, res) => {
+  const { collection } = req.params;
+  const { all, item, index, deleteFlag } = req.body;
+
+  try {
+    const col = db.collection(collection);
+
+    if (all) {
+      // Replace all (optional, use carefully)
+      await col.deleteMany({});
+      await col.insertMany(all);
+    } else if (item && deleteFlag && index !== undefined) {
+      // Delete item by _id
+      await col.deleteOne({ _id: new ObjectId(item._id) });
+    } else if (item && index !== undefined) {
+      // Update existing by _id
+      const {_id, ...rest} = item;
+      await col.updateOne({ _id: new ObjectId(_id) }, { $set: rest });
+    } else if (item) {
+      // Insert new
+      await col.insertOne(item);
+    }
+
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// Change password
-app.post("/api/change-password", (req, res) => {
-  const { username, oldPassword, newPassword } = req.body || {};
-  if (!username || !oldPassword || !newPassword)
-    return res.json({ success: false, message: "Missing fields." });
-
-  const data = readData();
-  const user = data.members.find(
-    u => u.username === username && u.password === oldPassword
-  );
-  if (!user) return res.json({ success: false, message: "Old password is incorrect" });
-
-  user.password = newPassword;
-  writeData(data);
-  res.json({ success: true, message: "Password updated successfully" });
-});
-
-// ---------- Member ----------
-app.get("/api/member-data/:username", (req, res) => {
+// ---------- Member Data ----------
+app.get("/api/member-data/:username", async (req, res) => {
   const { username } = req.params;
-  const data = readData();
-  const user = data.members.find(m => m.username === username);
-  if (!user) return res.json({ success: false, message: "Member not found" });
+  try {
+    const user = await db.collection("members").findOne({ username });
+    if (!user) return res.json({ success: false, message: "Member not found" });
 
-  const weekly = data.weekly.filter(w => w.member === username);
-  const withdrawals = data.withdrawals.filter(w => w.member === username);
-  const loans = data.loans ? data.loans.filter(l => l.member === username) : [];
+    const weekly = await db.collection("weekly").find({ member: username }).toArray();
+    const withdrawals = await db.collection("withdrawals").find({ member: username }).toArray();
+    const loans = await db.collection("loans").find({ member: username }).toArray();
 
-  // Calculate balance
-  const depositsTotal = weekly.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
-  const withdrawalsTotal = withdrawals.reduce((sum, w) => sum + parseFloat(w.withdrawn || 0), 0);
-  const loansTotal = loans.reduce((sum, l) => sum + parseFloat(l.borrowed || 0), 0);
-  const balance = depositsTotal - withdrawalsTotal - loansTotal;
+    const depositsTotal = weekly.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
+    const withdrawalsTotal = withdrawals.reduce((sum, w) => sum + parseFloat(w.withdrawn || 0), 0);
+    const loansTotal = loans.reduce((sum, l) => sum + parseFloat(l.borrowed || 0), 0);
+    const balance = depositsTotal - withdrawalsTotal - loansTotal;
 
-  res.json({
-    success: true,
-    user,
-    weekly,
-    withdrawals,
-    loans,
-    depositsTotal,
-    withdrawalsTotal,
-    loansTotal,
-    balance
-  });
+    res.json({
+      success: true,
+      user,
+      weekly,
+      withdrawals,
+      loans,
+      depositsTotal,
+      withdrawalsTotal,
+      loansTotal,
+      balance
+    });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// Withdraw
-app.post("/member/withdraw", (req, res) => {
+// ---------- Member Actions ----------
+app.post("/member/withdraw", async (req, res) => {
   const { username, amount, date } = req.body;
-  const data = readData();
+  try {
+    const user = await db.collection("members").findOne({ username });
+    if (!user) return res.json({ success: false, message: "User not found." });
 
-  if (!data.members.some(u => u.username === username))
-    return res.json({ success: false, message: "User not found." });
+    await db.collection("withdrawals").insertOne({
+      member: username,
+      withdrawn: parseFloat(amount),
+      date: date || new Date().toISOString().split("T")[0]
+    });
 
-  data.withdrawals.push({
-    member: username,
-    withdrawn: parseFloat(amount),
-    date: date || new Date().toISOString().split("T")[0]
-  });
-
-  writeData(data);
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// Request loan
-app.post("/member/request-loan", (req, res) => {
+app.post("/member/request-loan", async (req, res) => {
   const { username, amount, date } = req.body;
-  const data = readData();
+  try {
+    const user = await db.collection("members").findOne({ username });
+    if (!user) return res.json({ success: false, message: "User not found." });
 
-  if (!data.members.some(u => u.username === username))
-    return res.json({ success: false, message: "User not found." });
+    await db.collection("loans").insertOne({
+      member: username,
+      loanRequested: parseFloat(amount),
+      borrowed: 0,
+      repayment: 0,
+      dateTaken: date || new Date().toISOString().split("T")[0],
+      status: "ongoing"
+    });
 
-  data.loans.push({
-    member: username,
-    loanRequested: parseFloat(amount),
-    borrowed: 0,
-    repayment: 0,
-    dateTaken: date || new Date().toISOString().split("T")[0],
-    status: "ongoing"
-  });
-
-  writeData(data);
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ---------- Serve HTML Pages ----------
+// ---------- Serve HTML ----------
 const pages = ["index","signup","login","admin","member","about","contact","FAQ","home"];
 pages.forEach(p => {
   app.get(p === "index" ? "/" : `/${p}.html`, (req, res) => {
@@ -172,5 +181,5 @@ pages.forEach(p => {
   });
 });
 
-// ---------- Start server ----------
+// ---------- Start Server ----------
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

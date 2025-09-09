@@ -31,10 +31,10 @@ async function connectDB() {
     if (!admin) {
       const hashedPassword = await bcrypt.hash("adminfb2025", 10);
       await db.collection("members").insertOne({
-        username: "admin",
-        password: hashedPassword,
+        username: "Jal",
+        password: "adminfb2025",
         role: "admin",
-        name: "Administrator",
+        name: "Administrator", 
         status: "active",
         startDate: new Date().toISOString().split("T")[0],
       });

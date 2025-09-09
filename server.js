@@ -6,7 +6,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
-
 const app = express();
 app.use(express.json());
 
@@ -24,15 +23,6 @@ async function connectDB() {
     await client.connect();
     db = client.db("familybanking");
     console.log("✅ MongoDB connected");
-
-    // Ensure collections exist
-    const collections = await db.listCollections().toArray();
-    const collectionNames = collections.map(c => c.name);
-    if (!collectionNames.includes("members")) await db.createCollection("members");
-    if (!collectionNames.includes("weekly")) await db.createCollection("weekly");
-    if (!collectionNames.includes("withdrawals")) await db.createCollection("withdrawals");
-    if (!collectionNames.includes("loans")) await db.createCollection("loans");
-
     await seedDatabase();
   } catch (err) {
     console.error("MongoDB connection error:", err);
@@ -44,7 +34,6 @@ async function connectDB() {
 async function seedDatabase() {
   const membersCollection = db.collection("members");
 
-  // Admin account
   const adminExists = await membersCollection.findOne({ username: "admin" });
   if (!adminExists) {
     await membersCollection.insertOne({
@@ -67,7 +56,6 @@ app.post("/signup", async (req, res) => {
   if (!fullname || !email || !username || !password) {
     return res.json({ success: false, message: "All fields are required" });
   }
-
   try {
     const existing = await db.collection("members").findOne({ username });
     if (existing) return res.json({ success: false, message: "Username already exists" });
@@ -102,21 +90,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Member data
-app.get("/api/member-data/:username", async (req, res) => {
-  const { username } = req.params;
-  try {
-    const weekly = await db.collection("weekly").find({ member: username }).toArray();
-    const withdrawals = await db.collection("withdrawals").find({ member: username }).toArray();
-    const loans = await db.collection("loans").find({ member: username }).toArray();
-    res.json({ success: true, weekly, withdrawals, loans });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Error fetching member data" });
-  }
-});
-
-// Admin data
+// Admin fetch data
 app.get("/api/admin-data", async (req, res) => {
   try {
     const members = await db.collection("members").find({}).toArray();
@@ -130,17 +104,18 @@ app.get("/api/admin-data", async (req, res) => {
   }
 });
 
-// Admin update/save
+// Admin save/update/delete
 app.post("/api/admin-data/:collection", async (req, res) => {
   const { collection } = req.params;
   const { item, deleteFlag } = req.body;
-
   try {
     const coll = db.collection(collection);
+
     if (deleteFlag) {
       await coll.deleteOne({ _id: ObjectId(item._id) });
       return res.json({ success: true });
     }
+
     if (item._id) {
       const id = ObjectId(item._id);
       delete item._id;
@@ -148,10 +123,25 @@ app.post("/api/admin-data/:collection", async (req, res) => {
     } else {
       await coll.insertOne(item);
     }
+
     res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Error saving data" });
+  }
+});
+
+// Member fetch their data
+app.get("/api/member-data/:username", async (req, res) => {
+  const { username } = req.params;
+  try {
+    const weekly = await db.collection("weekly").find({ member: username }).toArray();
+    const withdrawals = await db.collection("withdrawals").find({ member: username }).toArray();
+    const loans = await db.collection("loans").find({ member: username }).toArray();
+    res.json({ success: true, weekly, withdrawals, loans });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error fetching member data" });
   }
 });
 

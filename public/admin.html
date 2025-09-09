@@ -168,11 +168,36 @@ let data = { members: [], weekly: [], withdrawals: [], loans: [], balances: {} }
 async function loadData() {
   try {
     const res = await fetch('/api/admin-data');
-    data = await res.json();
+    const result = await res.json();
+    data.members = result.members || [];
+    data.weekly = result.weekly || [];
+    data.withdrawals = result.withdrawals || [];
+    data.loans = result.loans || [];
+    computeBalances();
     renderAll();
   } catch (err) {
     console.error("Error loading data:", err);
   }
+}
+
+// ---------- Compute Balances ----------
+function computeBalances() {
+  const balances = {};
+  data.members.forEach(m => balances[m.username] = 0);
+
+  data.weekly.forEach(w => {
+    if (w.member) balances[w.member] = (balances[w.member] || 0) + parseFloat(w.amount || 0);
+  });
+
+  data.withdrawals.forEach(w => {
+    if (w.member) balances[w.member] = (balances[w.member] || 0) - parseFloat(w.withdrawn || 0);
+  });
+
+  data.loans.forEach(l => {
+    if (l.member) balances[l.member] = (balances[l.member] || 0) - parseFloat(l.borrowed || 0) + parseFloat(l.repayment || 0);
+  });
+
+  data.balances = balances;
 }
 
 // ---------- Render Functions ----------
@@ -238,8 +263,8 @@ function renderLoans() {
   const tbody = document.querySelector("#loanTable tbody");
   tbody.innerHTML = "";
   data.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed || 0);
-    const repaid = parseFloat(l.repayment || 0);
+    const borrowed = parseFloat(l.borrowed||0);
+    const repaid = parseFloat(l.repayment||0);
     let loanLeft = Math.max(borrowed - repaid, 0);
     let lateFee = 0;
     const today = new Date();
@@ -278,32 +303,34 @@ function addWeeklyRow() { data.weekly.push({ member:"", date:"", amount:0 }); re
 function addWithdrawalRow() { data.withdrawals.push({ member:"", withdrawn:0, date:"" }); renderAll(); }
 function addLoanRow() { data.loans.push({ dateTaken:"", member:"", loanRequested:0, borrowed:0, repayment:0, dueDate:"", finishDate:"", status:"ongoing" }); renderAll(); }
 
-async function deleteRow(collection, id) {
-  const item = data[collection].find(x => x._id === id);
-  data[collection] = data[collection].filter(x => x._id !== id);
-  await saveToBackend(collection, item, true);
+async function deleteRow(collection,id) {
+  const item = data[collection].find(x=>x._id===id);
+  if(!item) return;
+  data[collection] = data[collection].filter(x=>x._id!==id);
+  await saveToBackend(collection,item,true);
   await loadData();
 }
 
 // ---------- Update ----------
-function updateMember(id,key,value) { const m = data.members.find(x=>x._id===id); if(m){ m[key]=value; saveToBackend('members', m); } }
-function updateWeekly(id,key,value) { const w = data.weekly.find(x=>x._id===id); if(w){ w[key]=key==='amount'?parseFloat(value):value; saveToBackend('weekly', w); } }
-function updateWithdrawal(id,key,value) { const w = data.withdrawals.find(x=>x._id===id); if(w){ w[key]=key==='withdrawn'?parseFloat(value):value; saveToBackend('withdrawals', w); } }
-function updateLoan(id,key,value) { const l = data.loans.find(x=>x._id===id); if(l){ l[key]=['loanRequested','borrowed','repayment'].includes(key)?parseFloat(value):value; saveToBackend('loans', l); } }
+function updateMember(id,key,value) { const m = data.members.find(x=>x._id===id); if(m){ m[key]=value; saveToBackend('members',m).then(computeBalances).then(renderAll); } }
+function updateWeekly(id,key,value) { const w = data.weekly.find(x=>x._id===id); if(w){ w[key]=key==='amount'?parseFloat(value):value; saveToBackend('weekly',w).then(computeBalances).then(renderAll); } }
+function updateWithdrawal(id,key,value) { const w = data.withdrawals.find(x=>x._id===id); if(w){ w[key]=key==='withdrawn'?parseFloat(value):value; saveToBackend('withdrawals',w).then(computeBalances).then(renderAll); } }
+function updateLoan(id,key,value) { const l = data.loans.find(x=>x._id===id); if(l){ l[key]=['loanRequested','borrowed','repayment'].includes(key)?parseFloat(value):value; saveToBackend('loans',l).then(computeBalances).then(renderAll); } }
 
 // ---------- Save to Backend ----------
-async function saveToBackend(collection, item=null, deleteFlag=false) {
+async function saveToBackend(collection,item=null,deleteFlag=false) {
   try {
-    await fetch(`/api/admin-data/${collection}`, {
+    await fetch(`/api/admin-data/${collection}`,{
       method:'POST',
-      headers:{ 'Content-Type':'application/json' },
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ item, deleteFlag })
     });
-  } catch(err) { console.error("Error saving to backend:", err); alert("Error saving data."); }
+  } catch(err) { console.error("Error saving to backend:",err); alert("Error saving data."); }
 }
 
 // ---------- Render All ----------
 function renderAll() {
+  computeBalances();
   renderMembers();
   renderWeekly();
   renderWithdrawals();
@@ -311,8 +338,8 @@ function renderAll() {
 }
 
 // ---------- Navigation ----------
-function goToMemberPage() { window.location.href = "member.html"; }
-function logout() { localStorage.clear(); window.location.href = "index.html"; }
+function goToMemberPage(){ window.location.href="member.html"; }
+function logout(){ localStorage.clear(); window.location.href="index.html"; }
 
 window.addMemberRow = addMemberRow;
 window.addWeeklyRow = addWeeklyRow;
@@ -322,8 +349,8 @@ window.deleteRow = deleteRow;
 window.saveDataToBackend = saveToBackend;
 window.goToMemberPage = goToMemberPage;
 window.logout = logout;
-
 </script>
+
 
  <footer>
     <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>

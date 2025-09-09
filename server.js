@@ -39,7 +39,7 @@ async function seedDatabase() {
   const adminExists = await membersCollection.findOne({ username: "admin" });
   if (!adminExists) {
     await membersCollection.insertOne({
-      username: "Jal",
+      username: "admin",
       password: "adminfb2025",
       role: "admin",
       name: "Administrator",
@@ -101,6 +101,16 @@ app.get("/api/member-data/:username", async (req, res) => {
     const weekly = await db.collection("weekly").find({ member: username }).toArray();
     const withdrawals = await db.collection("withdrawals").find({ member: username }).toArray();
     const loans = await db.collection("loans").find({ member: username }).toArray();
+
+    // Ensure numeric fields are valid
+    weekly.forEach(w => w.amount = parseFloat(w.amount) || 0);
+    withdrawals.forEach(w => w.withdrawn = parseFloat(w.withdrawn) || 0);
+    loans.forEach(l => {
+      l.loanRequested = parseFloat(l.loanRequested) || 0;
+      l.borrowed = parseFloat(l.borrowed) || 0;
+      l.repayment = parseFloat(l.repayment) || 0;
+    });
+
     res.json({ success: true, weekly, withdrawals, loans });
   } catch (err) {
     console.error(err);
@@ -115,6 +125,16 @@ app.get("/api/admin-data", async (req, res) => {
     const weekly = await db.collection("weekly").find({}).toArray();
     const withdrawals = await db.collection("withdrawals").find({}).toArray();
     const loans = await db.collection("loans").find({}).toArray();
+
+    // Ensure numeric fields
+    weekly.forEach(w => w.amount = parseFloat(w.amount) || 0);
+    withdrawals.forEach(w => w.withdrawn = parseFloat(w.withdrawn) || 0);
+    loans.forEach(l => {
+      l.loanRequested = parseFloat(l.loanRequested) || 0;
+      l.borrowed = parseFloat(l.borrowed) || 0;
+      l.repayment = parseFloat(l.repayment) || 0;
+    });
+
     res.json({ members, weekly, withdrawals, loans });
   } catch (err) {
     console.error(err);
@@ -154,7 +174,7 @@ app.post("/api/admin-data/:collection", async (req, res) => {
 app.post("/member/withdraw", async (req, res) => {
   const { username, amount, date } = req.body;
   try {
-    await db.collection("withdrawals").insertOne({ member: username, withdrawn: parseFloat(amount), date });
+    await db.collection("withdrawals").insertOne({ member: username, withdrawn: parseFloat(amount) || 0, date });
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -168,7 +188,7 @@ app.post("/member/request-loan", async (req, res) => {
   try {
     await db.collection("loans").insertOne({
       member: username,
-      loanRequested: parseFloat(amount),
+      loanRequested: parseFloat(amount) || 0,
       borrowed: 0,
       repayment: 0,
       dateTaken: date,

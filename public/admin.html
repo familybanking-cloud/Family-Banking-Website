@@ -151,6 +151,8 @@
   <button onclick="restoreBackup()">Restore Backup</button>
 </div>
 <script>
+// admin.js
+
 window.onload = async function() {
   const role = localStorage.getItem("role");
   if (role !== "admin") {
@@ -161,11 +163,11 @@ window.onload = async function() {
   await loadData();
 };
 
-// ---------- Data ----------
+// local state
 let data = { members: [], weekly: [], withdrawals: [], loans: [] };
 let balances = {};
 
-// ---------- Load Data ----------
+// load all collections
 async function loadData() {
   try {
     const res = await fetch('/api/admin-data');
@@ -174,59 +176,55 @@ async function loadData() {
     data.weekly = result.weekly || [];
     data.withdrawals = result.withdrawals || [];
     data.loans = result.loans || [];
-    calculateBalances();
+    computeBalances();
     renderAll();
   } catch (err) {
-    console.error("Error loading data:", err);
+    console.error("Error loading admin-data:", err);
+    alert("Error loading data. Check server.");
   }
 }
 
-// ---------- Calculate Balances ----------
-function calculateBalances() {
+// compute balances from DB data (admin only reads these values)
+function computeBalances() {
   balances = {};
   data.members.forEach(m => balances[m.username] = 0);
 
-  // Weekly contributions
   data.weekly.forEach(w => {
-    if (!balances[w.member]) balances[w.member] = 0;
-    balances[w.member] += parseFloat(w.amount) || 0;
+    if (!w.member) return;
+    balances[w.member] = (balances[w.member] || 0) + parseFloat(w.amount || 0);
   });
 
-  // Withdrawals
   data.withdrawals.forEach(w => {
-    if (!balances[w.member]) balances[w.member] = 0;
-    balances[w.member] -= parseFloat(w.withdrawn) || 0;
+    if (!w.member) return;
+    balances[w.member] = (balances[w.member] || 0) - parseFloat(w.withdrawn || 0);
   });
 
-  // Loans
   data.loans.forEach(l => {
-    if (!balances[l.member]) balances[l.member] = 0;
-    const borrowed = parseFloat(l.borrowed || 0);
-    const repaid = parseFloat(l.repayment || 0);
-    balances[l.member] -= borrowed;
-    balances[l.member] += repaid;
+    if (!l.member) return;
+    balances[l.member] = (balances[l.member] || 0) - (parseFloat(l.borrowed || 0)) + (parseFloat(l.repayment || 0));
   });
 }
 
-// ---------- Render Functions ----------
+// ------------- render functions -------------
 function renderMembers() {
   const tbody = document.querySelector("#membersTable tbody");
   tbody.innerHTML = "";
   data.members.forEach(m => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td><input type="date" value="${m.startDate||''}" onchange="updateMember('${m._id}','startDate',this.value)"></td>
-      <td><input type="text" value="${m.name||''}" onchange="updateMember('${m._id}','name',this.value)"></td>
-      <td>${(balances[m.username]||0).toFixed(2)}</td>
+    const bal = (balances[m.username] || 0).toFixed(2);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="date" value="${m.startDate||''}" onchange="adminUpdate('members','${m._id}','startDate',this.value)"></td>
+      <td><input type="text" value="${escapeHtml(m.name||'')}" onchange="adminUpdate('members','${m._id}','name',this.value)"></td>
+      <td>${bal}</td>
       <td>
-        <select onchange="updateMember('${m._id}','status',this.value)">
+        <select onchange="adminUpdate('members','${m._id}','status',this.value)">
           <option value="active" ${m.status==="active"?"selected":""}>Active</option>
           <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
         </select>
       </td>
-      <td><button onclick="deleteRow('members','${m._id}')">Delete</button></td>
+      <td><button onclick="adminDelete('members','${m._id}')">Delete</button></td>
     `;
-    tbody.appendChild(row);
+    tbody.appendChild(tr);
   });
 }
 
@@ -234,15 +232,16 @@ function renderWeekly() {
   const tbody = document.querySelector("#weeklyTable tbody");
   tbody.innerHTML = "";
   data.weekly.forEach(w => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td><input type="text" value="${w.member||''}" onchange="updateWeekly('${w._id}','member',this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="updateWeekly('${w._id}','date',this.value)"></td>
-      <td><input type="number" value="${w.amount||0}" onchange="updateWeekly('${w._id}','amount',this.value)"></td>
-      <td>${(balances[w.member]||0).toFixed(2)}</td>
-      <td><button onclick="deleteRow('weekly','${w._id}')">Delete</button></td>
+    const bal = (balances[w.member] || 0).toFixed(2);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" value="${escapeHtml(w.member||'')}" placeholder="username" onchange="adminUpdate('weekly','${w._id}','member',this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('weekly','${w._id}','date',this.value)"></td>
+      <td><input type="number" value="${w.amount||0}" onchange="adminUpdate('weekly','${w._id}','amount',this.value)"></td>
+      <td>${bal}</td>
+      <td><button onclick="adminDelete('weekly','${w._id}')">Delete</button></td>
     `;
-    tbody.appendChild(row);
+    tbody.appendChild(tr);
   });
 }
 
@@ -250,17 +249,18 @@ function renderWithdrawals() {
   const tbody = document.querySelector("#withdrawalTable tbody");
   tbody.innerHTML = "";
   data.withdrawals.forEach(w => {
-    const after = (balances[w.member]||0) - (parseFloat(w.withdrawn)||0);
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td><input type="text" value="${w.member||''}" onchange="updateWithdrawal('${w._id}','member',this.value)"></td>
-      <td>${(balances[w.member]||0).toFixed(2)}</td>
-      <td><input type="number" value="${w.withdrawn||0}" onchange="updateWithdrawal('${w._id}','withdrawn',this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="updateWithdrawal('${w._id}','date',this.value)"></td>
-      <td>${after.toFixed(2)}</td>
-      <td><button onclick="deleteRow('withdrawals','${w._id}')">Delete</button></td>
+    const bal = (balances[w.member] || 0).toFixed(2);
+    const after = ((balances[w.member] || 0) - (parseFloat(w.withdrawn||0))).toFixed(2);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" value="${escapeHtml(w.member||'')}" onchange="adminUpdate('withdrawals','${w._id}','member',this.value)"></td>
+      <td>${bal}</td>
+      <td><input type="number" value="${w.withdrawn||0}" onchange="adminUpdate('withdrawals','${w._id}','withdrawn',this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('withdrawals','${w._id}','date',this.value)"></td>
+      <td>${after}</td>
+      <td><button onclick="adminDelete('withdrawals','${w._id}')">Delete</button></td>
     `;
-    tbody.appendChild(row);
+    tbody.appendChild(tr);
   });
 }
 
@@ -274,84 +274,140 @@ function renderLoans() {
     let lateFee = 0;
     const today = new Date();
     const finish = l.finishDate ? new Date(l.finishDate) : null;
-    if(finish && today > finish && l.status==="ongoing") {
+    if (finish && today > finish && l.status === "ongoing") {
       lateFee = loanLeft * 0.02;
       loanLeft += lateFee;
     }
 
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td><input type="date" value="${l.dateTaken||''}" onchange="updateLoan('${l._id}','dateTaken',this.value)"></td>
-      <td><input type="text" value="${l.member||''}" onchange="updateLoan('${l._id}','member',this.value)"></td>
-      <td><input type="number" value="${l.loanRequested||0}" onchange="updateLoan('${l._id}','loanRequested',this.value)"></td>
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="date" value="${l.dateTaken||''}" onchange="adminUpdate('loans','${l._id}','dateTaken',this.value)"></td>
+      <td><input type="text" value="${escapeHtml(l.member||'')}" onchange="adminUpdate('loans','${l._id}','member',this.value)"></td>
+      <td><input type="number" value="${l.loanRequested||0}" onchange="adminUpdate('loans','${l._id}','loanRequested',this.value)"></td>
       <td><input type="number" value="${borrowed}"></td>
-      <td><input type="number" value="${repaid}" onchange="updateLoan('${l._id}','repayment',this.value)"></td>
-      <td><input type="date" value="${l.dueDate||''}" onchange="updateLoan('${l._id}','dueDate',this.value)"></td>
-      <td><input type="date" value="${l.finishDate||''}" onchange="updateLoan('${l._id}','finishDate',this.value)"></td>
+      <td><input type="number" value="${repaid}" onchange="adminUpdate('loans','${l._id}','repayment',this.value)"></td>
+      <td><input type="date" value="${l.dueDate||''}" onchange="adminUpdate('loans','${l._id}','dueDate',this.value)"></td>
+      <td><input type="date" value="${l.finishDate||''}" onchange="adminUpdate('loans','${l._id}','finishDate',this.value)"></td>
       <td>${loanLeft.toFixed(2)}</td>
       <td>${lateFee.toFixed(2)}</td>
       <td>
-        <select onchange="updateLoan('${l._id}','status',this.value)">
+        <select onchange="adminUpdate('loans','${l._id}','status',this.value)">
           <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
           <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
         </select>
       </td>
-      <td><button onclick="deleteRow('loans','${l._id}')">Delete</button></td>
+      <td><button onclick="adminDelete('loans','${l._id}')">Delete</button></td>
     `;
-    tbody.appendChild(row);
+    tbody.appendChild(tr);
   });
 }
 
-// ---------- Add/Delete ----------
-function addMemberRow() { data.members.push({ startDate:"", name:"", status:"active" }); renderAll(); }
-function addWeeklyRow() { data.weekly.push({ member:"", date:"", amount:0 }); renderAll(); }
-function addWithdrawalRow() { data.withdrawals.push({ member:"", withdrawn:0, date:"" }); renderAll(); }
-function addLoanRow() { data.loans.push({ dateTaken:"", member:"", loanRequested:0, borrowed:0, repayment:0, dueDate:"", finishDate:"", status:"ongoing" }); renderAll(); }
+// helper escape
+function escapeHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
-async function deleteRow(collection, id) {
-  const item = data[collection].find(x=>x._id===id);
-  data[collection] = data[collection].filter(x=>x._id!==id);
-  await saveToBackend(collection, item, true);
-  calculateBalances();
-  renderAll();
-}
-
-// ---------- Update ----------
-function updateMember(id,key,value) { const m=data.members.find(x=>x._id===id); if(m){ m[key]=value; saveToBackend('members', m); calculateBalances(); renderAll(); } }
-function updateWeekly(id,key,value) { const w=data.weekly.find(x=>x._id===id); if(w){ w[key]=parseFloat(value)||value; saveToBackend('weekly', w); calculateBalances(); renderAll(); } }
-function updateWithdrawal(id,key,value) { const w=data.withdrawals.find(x=>x._id===id); if(w){ w[key]=(key==='withdrawn'?parseFloat(value):value); saveToBackend('withdrawals', w); calculateBalances(); renderAll(); } }
-function updateLoan(id,key,value) { const l=data.loans.find(x=>x._id===id); if(l){ l[key]=['loanRequested','borrowed','repayment'].includes(key)?parseFloat(value):value; saveToBackend('loans', l); calculateBalances(); renderAll(); } }
-
-// ---------- Save to Backend ----------
-async function saveToBackend(collection, item=null, deleteFlag=false) {
-  try {
-    await fetch(`/api/admin-data/${collection}`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ item, deleteFlag })
-    });
-  } catch(err) { console.error("Error saving:", err); alert("Error saving data."); }
-}
-
-// ---------- Render All ----------
+// render all
 function renderAll() {
-  calculateBalances();
+  computeBalances();
   renderMembers();
   renderWeekly();
   renderWithdrawals();
   renderLoans();
 }
 
-// ---------- Navigation ----------
-function goToMemberPage() { window.location.href="member.html"; }
-function logout() { localStorage.clear(); window.location.href="index.html"; }
-window.addMemberRow=addMemberRow;
-window.addWeeklyRow=addWeeklyRow;
-window.addWithdrawalRow=addWithdrawalRow;
-window.addLoanRow=addLoanRow;
-window.deleteRow=deleteRow;
-window.goToMemberPage=goToMemberPage;
-window.logout=logout;
+// ------------- Admin actions: add / update / delete -------------
+// Add helpers: addRow will create an empty doc on the server and return the inserted doc
+async function adminAdd(collection, template = {}) {
+  try {
+    const res = await fetch(`/api/admin-data/${collection}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item: template })
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || "Insert failed");
+    // push inserted doc into local data
+    data[collection].push(json.item);
+    computeBalances();
+    renderAll();
+  } catch (err) {
+    console.error("Add error:", err);
+    alert("Error adding item");
+  }
+}
+
+window.addMemberRow = () => adminAdd("members", { username: "", password: "", role: "member", name: "", status: "active", startDate: new Date().toISOString().split("T")[0] });
+window.addWeeklyRow = () => adminAdd("weekly", { member: "", amount: 0, date: new Date().toISOString().split("T")[0] });
+window.addWithdrawalRow = () => adminAdd("withdrawals", { member: "", withdrawn: 0, date: new Date().toISOString().split("T")[0] });
+window.addLoanRow = () => adminAdd("loans", { member: "", loanRequested: 0, borrowed: 0, repayment: 0, dateTaken: new Date().toISOString().split("T")[0], dueDate: "", finishDate: "", status: "ongoing" });
+
+// update
+async function adminUpdate(collection, id, key, value) {
+  try {
+    const collArray = data[collection];
+    const item = collArray.find(x => String(x._id) === String(id));
+    if (!item) return console.warn("Item not found for update", id);
+    // parse numeric fields
+    if (["amount","withdrawn","loanRequested","borrowed","repayment"].includes(key)) {
+      item[key] = value === "" ? 0 : parseFloat(value);
+    } else {
+      item[key] = value;
+    }
+
+    // save to server (will update existing doc)
+    const res = await fetch(`/api/admin-data/${collection}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item })
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || "Update failed");
+
+    // replace local item with server-returned item (to ensure _id and types match)
+    const idx = collArray.findIndex(x => String(x._id) === String(id));
+    if (idx !== -1) collArray[idx] = json.item;
+
+    computeBalances();
+    renderAll();
+  } catch (err) {
+    console.error("Update error:", err);
+    alert("Error updating item");
+  }
+}
+
+// delete
+async function adminDelete(collection, id) {
+  try {
+    const collArray = data[collection];
+    const item = collArray.find(x => String(x._id) === String(id));
+    if (!item) return;
+
+    const ok = confirm("Delete this item?");
+    if (!ok) return;
+
+    const res = await fetch(`/api/admin-data/${collection}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item, deleteFlag: true })
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || "Delete failed");
+
+    // remove locally
+    data[collection] = collArray.filter(x => String(x._id) !== String(id));
+    computeBalances();
+    renderAll();
+  } catch (err) {
+    console.error("Delete error:", err);
+    alert("Error deleting item");
+  }
+}
+
+// navigation
+function goToMemberPage() { window.location.href = "member.html"; }
+function logout() { localStorage.clear(); window.location.href = "index.html"; }
+window.goToMemberPage = goToMemberPage;
+window.logout = logout;
+
 </script>
 
  <footer>

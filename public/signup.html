@@ -112,55 +112,57 @@
 </footer>
 
 <script>
-document.getElementById("showSignupPassword").addEventListener("change", function() {
+document.addEventListener('DOMContentLoaded', () => {
+  const showPass = document.getElementById("showSignupPassword");
   const pass = document.getElementById("signupPassword");
   const confirmPass = document.getElementById("signupConfirmPassword");
-  pass.type = confirmPass.type = this.checked ? "text" : "password";
-});
-
-document.getElementById("signupBtn").addEventListener("click", async function() {
-  const fullname = document.getElementById("signupName").value.trim();
-  const email = document.getElementById("signupEmail").value.trim();
-  const username = document.getElementById("signupUsername").value.trim();
-  const password = document.getElementById("signupPassword").value;
-  const confirmPassword = document.getElementById("signupConfirmPassword").value;
   const msg = document.getElementById("message");
-  msg.textContent = "";
 
-  if (!fullname || !email || !username || !password || !confirmPassword) {
-    msg.textContent = "Please fill all fields"; 
-    return;
-  }
-  if (password !== confirmPassword) {
-    msg.textContent = "Passwords do not match"; 
-    return;
-  }
+  // Toggle password visibility
+  showPass.addEventListener("change", () => {
+    pass.type = confirmPass.type = showPass.checked ? "text" : "password";
+  });
 
-  try {
-    // Use relative URL (works locally and on Render if same service)
-    const backendURL = "/signup"; // Change to full backend URL only if frontend is separate
-    const res = await fetch(backendURL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullname, email, username, password })
-    });
+  // Signup
+  document.getElementById("signupBtn").addEventListener("click", async () => {
+    const fullname = document.getElementById("signupName").value.trim();
+    const email = document.getElementById("signupEmail").value.trim();
+    const username = document.getElementById("signupUsername").value.trim();
+    const password = pass.value;
+    const confirmPassword = confirmPass.value;
 
-    const data = await res.json();
+    msg.textContent = "";
 
-    if (data.success) {
-      alert("Signup successful! Please log in.");
-      window.location.href = "index.html"; // Redirect to login page
-    } else {
-      msg.textContent = data.message || "Signup failed.";
+    if (!fullname || !email || !username || !password || !confirmPassword) {
+      msg.textContent = "Please fill all fields";
+      return;
+    }
+    if (password !== confirmPassword) {
+      msg.textContent = "Passwords do not match";
+      return;
     }
 
-  } catch (err) {
-    console.error("Signup error:", err);
-    msg.textContent = "Server error. Please try again later.";
-  }
+    try {
+      const res = await fetch("/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullname, email, username, password })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert("Signup successful! Please log in.");
+        window.location.href = "index.html";
+      } else {
+        msg.textContent = data.message || "Signup failed.";
+      }
+    } catch (err) {
+      console.error("Signup error:", err);
+      msg.textContent = "Server error. Please try again later.";
+    }
+  });
 });
 </script>
-
 
 </body>
 </html>

@@ -79,141 +79,346 @@ footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; mar
 </section>
 
 <script>
-// admin.js
-// Require necessary modules
-import express from "express";
-import { ObjectId } from "mongodb";
-import jwt from "jsonwebtoken";
+/*
+  Admin script (JWT auth + calculations + CRUD)
+  Paste into admin.html (replace existing admin script).
+*/
 
-const app = express();
-app.use(express.json());
+// ---- config ----
+const token = localStorage.getItem("token"); // JWT from login
+if (!token) {
+  alert("Not logged in. Please log in as admin.");
+  window.location.href = "index.html";
+}
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
+// helper - fetch with Authorization header
+async function fetchWithAuth(url, opts = {}) {
+  const merged = {
+    ...opts,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + token,
+      ...(opts.headers || {})
+    }
+  };
+  const res = await fetch(url, merged);
+  // try parse json (catch network / server errors)
+  try { return await res.json(); } catch (e) { throw new Error("Invalid JSON from server"); }
+}
 
-// ---------- JWT Verification ----------
-function verifyToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader)
-    return res.status(401).json({ success: false, message: "No token provided" });
+// local state
+let state = { members: [], weekly: [], withdrawals: [], loans: [] };
 
-  const token = authHeader.split(" ")[1];
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(403).json({ success: false, message: "Invalid token" });
-    req.user = decoded;
-    next();
+// ---------- load data ----------
+async function loadData() {
+  try {
+    const data = await fetchWithAuth("/api/admin-data");
+    if (!data || !Array.isArray(data.members)) throw new Error(data.message || "Bad admin-data response");
+
+    state.members = data.members || [];
+    state.weekly = data.weekly || [];
+    state.withdrawals = data.withdrawals || [];
+    state.loans = data.loans || [];
+
+    computeAndRenderAll();
+  } catch (err) {
+    console.error("Error loading admin-data:", err);
+    alert("Error loading admin data. Check console and server logs.");
+  }
+}
+
+// ---------- calculations ----------
+function computePerMemberBalances() {
+  // start with known members (use username as key)
+  const balances = {};
+  state.members.forEach(m => {
+    // member might have username or name field; require the admin to use username for contributions
+    const uname = m.username || m.name || "";
+    if (uname) balances[uname] = 0;
+  });
+
+  // contributions add
+  state.weekly.forEach(w => {
+    const m = w.member;
+    if (!m) return;
+    balances[m] = (balances[m] || 0) + (Number(w.amount) || 0);
+  });
+
+  // withdrawals subtract
+  state.withdrawals.forEach(w => {
+    const m = w.member;
+    if (!m) return;
+    // note: field name used when saving should be 'withdrawn' (see server)
+    const val = Number(w.withdrawn || w.amount || 0);
+    balances[m] = (balances[m] || 0) - val;
+  });
+
+  // loans: borrowed subtract, repayment add
+  state.loans.forEach(l => {
+    const m = l.member;
+    if (!m) return;
+    const borrowed = Number(l.borrowed || 0);
+    const repayment = Number(l.repayment || 0);
+    balances[m] = (balances[m] || 0) - borrowed + repayment;
+  });
+
+  return balances;
+}
+
+function computeTotals(perMemberBalances) {
+  const totals = {
+    totalMembers: state.members.length,
+    totalWeekly: state.weekly.reduce((s, w) => s + (Number(w.amount) || 0), 0),
+    totalWithdrawals: state.withdrawals.reduce((s, w) => s + (Number(w.withdrawn || w.amount) || 0), 0),
+    totalLoansBorrowed: state.loans.reduce((s, l) => s + (Number(l.borrowed) || 0), 0),
+    totalLoansRepaid: state.loans.reduce((s, l) => s + (Number(l.repayment) || 0), 0)
+  };
+  totals.totalLoansNet = totals.totalLoansBorrowed - totals.totalLoansRepaid;
+  totals.netBalance = totals.totalWeekly - totals.totalWithdrawals - totals.totalLoansNet;
+  totals.perMember = perMemberBalances;
+  return totals;
+}
+
+// ---------- render ----------
+function renderOverview(totals) {
+  // create placeholders in admin.html for these IDs if not present
+  // (totalMembers, totalWeekly, totalWithdrawals, totalLoansBorrowed, totalLoansRepaid, netBalance)
+  const ensure = (id, defaultText="0") => {
+    if (!document.getElementById(id)) {
+      const div = document.createElement("div");
+      div.id = id;
+      document.body.insertBefore(div, document.body.firstChild);
+    }
+    document.getElementById(id).textContent = totals[id] !== undefined ? (Number(totals[id]).toFixed(2) || totals[id]) : defaultText;
+  };
+
+  // If you already have placeholders with these IDs this will update them
+  document.getElementById("totalMembers")?.textContent = totals.totalMembers;
+  document.getElementById("totalWeekly")?.textContent = (totals.totalWeekly || 0).toFixed(2);
+  document.getElementById("totalWithdrawals")?.textContent = (totals.totalWithdrawals || 0).toFixed(2);
+  document.getElementById("totalLoansBorrowed")?.textContent = (totals.totalLoansBorrowed || 0).toFixed(2);
+  document.getElementById("totalLoansRepaid")?.textContent = (totals.totalLoansRepaid || 0).toFixed(2);
+  document.getElementById("netBalance")?.textContent = (totals.netBalance || 0).toFixed(2);
+}
+
+// build members table (with balances column)
+function renderMembersTable(perMember) {
+  const tbody = document.querySelector("#membersTable tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  state.members.forEach(m => {
+    const uname = m.username || m.name || "";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="date" value="${m.startDate||''}" onchange="adminUpdate('members','${m._id}','startDate',this.value)"></td>
+      <td><input type="text" value="${(m.name||'')}" onchange="adminUpdate('members','${m._id}','name',this.value)"></td>
+      <td>${(perMember[uname]||0).toFixed(2)}</td>
+      <td>
+        <select onchange="adminUpdate('members','${m._id}','status',this.value)">
+          <option value="active" ${m.status==="active"?"selected":""}>Active</option>
+          <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
+        </select>
+      </td>
+      <td><button onclick="adminDelete('members','${m._id}')">Delete</button></td>
+    `;
+    tbody.appendChild(tr);
   });
 }
 
-// ---------- Helper ----------
-function validCollection(name) {
-  return ["members", "weekly", "withdrawals", "loans"].includes(name);
+// weekly table
+function renderWeeklyTable(perMember) {
+  const tbody = document.querySelector("#weeklyTable tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  state.weekly.forEach(w => {
+    const current = perMember[w.member] || 0;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" value="${w.member||''}" onchange="adminUpdate('weekly','${w._id}','member',this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('weekly','${w._id}','date',this.value)"></td>
+      <td><input type="number" value="${w.amount||0}" onchange="adminUpdate('weekly','${w._id}','amount',this.value)"></td>
+      <td>${current.toFixed(2)}</td>
+      <td><button onclick="adminDelete('weekly','${w._id}')">Delete</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
-// ---------- Admin Routes ----------
-// Get all admin data
-app.get("/api/admin-data", verifyToken, async (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ success: false, message: "Admins only" });
+// withdrawals table
+function renderWithdrawalsTable(perMember) {
+  const tbody = document.querySelector("#withdrawalTable tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  state.withdrawals.forEach(w => {
+    const current = perMember[w.member] || 0;
+    const after = current - (Number(w.withdrawn||0));
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" value="${w.member||''}" onchange="adminUpdate('withdrawals','${w._id}','member',this.value)"></td>
+      <td>${current.toFixed(2)}</td>
+      <td><input type="number" value="${w.withdrawn||0}" onchange="adminUpdate('withdrawals','${w._id}','withdrawn',this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('withdrawals','${w._id}','date',this.value)"></td>
+      <td>${after.toFixed(2)}</td>
+      <td><button onclick="adminDelete('withdrawals','${w._id}')">Delete</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
-  try {
-    const members = await db.collection("members").find({}).toArray();
-    const weekly = await db.collection("weekly").find({}).toArray();
-    const withdrawals = await db.collection("withdrawals").find({}).toArray();
-    const loans = await db.collection("loans").find({}).toArray();
+// loans table - shows loanLeft and late fee
+function renderLoansTable() {
+  const tbody = document.querySelector("#loanTable tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  state.loans.forEach(l => {
+    const borrowed = Number(l.borrowed||0);
+    const repaid = Number(l.repayment||0);
+    let loanLeft = Math.max(borrowed - repaid, 0);
+    let lateFee = 0;
+    const today = new Date();
+    const finish = l.finishDate ? new Date(l.finishDate) : null;
+    if (finish && today > finish && l.status === "ongoing") {
+      lateFee = loanLeft * 0.02;
+      loanLeft += lateFee;
+    }
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="date" value="${l.dateTaken||''}" onchange="adminUpdate('loans','${l._id}','dateTaken',this.value)"></td>
+      <td><input type="text" value="${l.member||''}" onchange="adminUpdate('loans','${l._id}','member',this.value)"></td>
+      <td><input type="number" value="${l.loanRequested||0}" onchange="adminUpdate('loans','${l._id}','loanRequested',this.value)"></td>
+      <td><input type="number" value="${borrowed}"></td>
+      <td><input type="number" value="${repaid}" onchange="adminUpdate('loans','${l._id}','repayment',this.value)"></td>
+      <td><input type="date" value="${l.dueDate||''}" onchange="adminUpdate('loans','${l._id}','dueDate',this.value)"></td>
+      <td><input type="date" value="${l.finishDate||''}" onchange="adminUpdate('loans','${l._id}','finishDate',this.value)"></td>
+      <td>${loanLeft.toFixed(2)}</td>
+      <td>${lateFee.toFixed(2)}</td>
+      <td>
+        <select onchange="adminUpdate('loans','${l._id}','status',this.value)">
+          <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
+          <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
+        </select>
+      </td>
+      <td><button onclick="adminDelete('loans','${l._id}')">Delete</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
-    // Compute balances for each member
-    const memberBalances = {};
-    members.forEach(m => memberBalances[m.username] = 0);
+// ---------- compute + render all ----------
+function computeAndRenderAll() {
+  const perMember = computePerMemberBalances();
+  const totals = computeTotals(perMember);
+  renderOverview(totals);
+  renderMembersTable(perMember);
+  renderWeeklyTable(perMember);
+  renderWithdrawalsTable(perMember);
+  renderLoansTable();
+  // optionally show per-member list somewhere
+  renderPerMemberList(perMember);
+}
 
-    weekly.forEach(w => {
-      if (memberBalances[w.username] !== undefined)
-        memberBalances[w.username] += parseFloat(w.amount || 0);
-    });
-
-    withdrawals.forEach(w => {
-      if (memberBalances[w.username] !== undefined)
-        memberBalances[w.username] -= parseFloat(w.amount || 0);
-    });
-
-    loans.forEach(l => {
-      const borrowed = parseFloat(l.borrowed || 0);
-      const repaid = parseFloat(l.repayment || 0);
-      if (memberBalances[l.username] !== undefined)
-        memberBalances[l.username] -= borrowed;
-      if (memberBalances[l.username] !== undefined)
-        memberBalances[l.username] += repaid;
-    });
-
-    // Attach balance to members
-    const membersWithBalance = members.map(m => ({
-      ...m,
-      balance: memberBalances[m.username] || 0
-    }));
-
-    res.json({ success: true, members: membersWithBalance, weekly, withdrawals, loans });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Error fetching admin data" });
+// optional: show per-member breakdown in a side panel (if you have #perMemberDiv)
+function renderPerMemberList(perMember) {
+  const el = document.getElementById("perMemberDiv");
+  if (!el) return;
+  el.innerHTML = "<h4>Per-member balances</h4>";
+  for (const k of Object.keys(perMember)) {
+    const div = document.createElement("div");
+    div.textContent = `${k}: ${perMember[k].toFixed(2)}`;
+    el.appendChild(div);
   }
-});
+}
 
-// Create / update / delete entries
-app.post("/api/admin-data/:collection", verifyToken, async (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ success: false, message: "Admins only" });
-
-  const { collection } = req.params;
-  const { item, deleteFlag } = req.body;
-
-  if (!validCollection(collection))
-    return res.status(400).json({ success: false, message: "Invalid collection" });
-
+// ---------- CRUD actions ----------
+// Add template and call backend; server returns the inserted item (with _id)
+async function adminAdd(collection, template) {
   try {
-    const coll = db.collection(collection);
+    // ensure numbers are numbers
+    ['amount','withdrawn','loanRequested','borrowed','repayment'].forEach(f=>{
+      if (template[f]!==undefined) template[f] = Number(template[f]||0);
+    });
 
-    if (deleteFlag) {
-      if (!item || !item._id) return res.status(400).json({ success: false, message: "Missing _id" });
-      await coll.deleteOne({ _id: ObjectId(item._id) });
-      return res.json({ success: true });
-    }
-
-    if (item && item._id) {
-      const id = ObjectId(item._id);
-      delete item._id;
-      await coll.updateOne({ _id: id }, { $set: item });
-      return res.json({ success: true });
-    }
-
-    if (item) {
-      // ---------- Loan Calculations ----------
-      if (collection === "loans") {
-        const member = await db.collection("members").findOne({ username: item.username });
-        const weeklyContribs = await db.collection("weekly").find({ username: item.username }).toArray();
-        const withdrawals = await db.collection("withdrawals").find({ username: item.username }).toArray();
-
-        let balance = 0;
-        weeklyContribs.forEach(w => balance += parseFloat(w.amount || 0));
-        withdrawals.forEach(w => balance -= parseFloat(w.amount || 0));
-
-        const requested = parseFloat(item.loanRequested || 0);
-        const borrowAmount = requested > balance ? requested - balance : 0;
-        item.borrowed = borrowAmount;
-        item.repayment = 0;
-        item.status = borrowAmount > 0 ? "ongoing" : "approved";
-      }
-
-      const inserted = await coll.insertOne(item);
-      return res.json({ success: true, item: inserted });
-    }
-
-    res.status(400).json({ success: false, message: "Missing item" });
+    const res = await fetchWithAuth(`/api/admin-data/${collection}`, {
+      method: "POST",
+      body: JSON.stringify({ item: template })
+    });
+    if (!res.success) throw new Error(res.message || "Insert failed");
+    // server returns inserted item (including _id) — push to local state
+    const inserted = res.item || template;
+    state[collection].push(inserted);
+    computeAndRenderAll();
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Error saving item" });
+    console.error("Add error:", err);
+    alert("Error adding item: " + err.message);
   }
-});
+}
 
-export default app;
+// Update - sends the whole item to server (item must include _id)
+async function adminUpdate(collection, id, key, value) {
+  try {
+    const arr = state[collection];
+    const item = arr.find(x => String(x._id) === String(id));
+    if (!item) return console.warn("Item not found", id);
+
+    // numeric parsing
+    if (["amount","withdrawn","loanRequested","borrowed","repayment"].includes(key)) {
+      item[key] = value === "" ? 0 : Number(value);
+    } else {
+      item[key] = value;
+    }
+    // send to server
+    const res = await fetchWithAuth(`/api/admin-data/${collection}`, {
+      method: "POST",
+      body: JSON.stringify({ item })
+    });
+    if (!res.success) throw new Error(res.message || "Update failed");
+    // server might return updated document; replace local
+    if (res.item) {
+      const idx = arr.findIndex(x=>String(x._id)===String(id));
+      if (idx!==-1) arr[idx] = res.item;
+    }
+    computeAndRenderAll();
+  } catch (err) {
+    console.error("Update error:", err);
+    alert("Error updating item: " + err.message);
+    await loadData(); // reload in case of failure
+  }
+}
+
+// Delete
+async function adminDelete(collection, id) {
+  try {
+    if (!confirm("Delete this item?")) return;
+    const item = { _id: id };
+    const res = await fetchWithAuth(`/api/admin-data/${collection}`, {
+      method: "POST",
+      body: JSON.stringify({ item, deleteFlag: true })
+    });
+    if (!res.success) throw new Error(res.message || "Delete failed");
+    state[collection] = state[collection].filter(x => String(x._id) !== String(id));
+    computeAndRenderAll();
+  } catch (err) {
+    console.error("Delete error:", err);
+    alert("Error deleting item: " + err.message);
+    await loadData();
+  }
+}
+
+// ---------- small helpers to be callable from inline attributes ----------
+window.adminAdd = adminAdd;
+window.adminUpdate = adminUpdate;
+window.adminDelete = adminDelete;
+
+// convenience add functions with templates
+window.addMemberRow = () => adminAdd("members", { username: "", password: "", role: "member", name: "", status: "active", startDate: new Date().toISOString().split("T")[0] });
+window.addWeeklyRow = () => adminAdd("weekly", { member: "", amount: 0, date: new Date().toISOString().split("T")[0] });
+window.addWithdrawalRow = () => adminAdd("withdrawals", { member: "", withdrawn: 0, date: new Date().toISOString().split("T")[0] });
+window.addLoanRow = () => adminAdd("loans", { member: "", loanRequested: 0, borrowed: 0, repayment: 0, dateTaken: new Date().toISOString().split("T")[0], dueDate: "", finishDate: "", status: "ongoing" });
+
+window.logout = () => { localStorage.removeItem("token"); window.location.href="index.html"; };
+
+// initial load
+loadData();
 </script>
 
 <footer>

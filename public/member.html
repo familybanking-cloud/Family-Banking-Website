@@ -82,96 +82,72 @@
 </div>
 
 <script>
-let memberData = { weekly: [], withdrawals: [], loans: [] };
-let balance = 0;
+// member.js
+import express from "express";
+import jwt from "jsonwebtoken";
 
-window.onload = async function() {
-  const token = localStorage.getItem("token");
-  if(!token) { alert("Access denied. Please login."); window.location.href="index.html"; return; }
+const app = express();
+app.use(express.json());
 
-  const payload = JSON.parse(atob(token.split(".")[1]));
-  if(payload.role !== "member") { alert("Members only."); window.location.href="index.html"; return; }
+const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
 
-  document.getElementById("memberName").textContent = payload.name;
-  await loadMemberData(payload.username, token);
-};
+// ---------- JWT Verification ----------
+function verifyToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader)
+    return res.status(401).json({ success: false, message: "No token provided" });
 
-async function loadMemberData(username, token) {
+  const token = authHeader.split(" ")[1];
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ success: false, message: "Invalid token" });
+    req.user = decoded;
+    next();
+  });
+}
+
+// ---------- Member Data ----------
+app.get("/api/member-data", verifyToken, async (req, res) => {
+  if (req.user.role !== "member")
+    return res.status(403).json({ success: false, message: "Members only" });
+
   try {
-    const res = await fetch(`/api/member-data/${username}`, { headers: { "Authorization": "Bearer " + token } });
-    const result = await res.json();
-    if(!result.success) { alert("Error fetching data."); localStorage.removeItem("token"); window.location.href="index.html"; return; }
+    const username = req.user.username;
 
-    memberData.weekly = result.weekly || [];
-    memberData.withdrawals = result.withdrawals || [];
-    memberData.loans = result.loans || [];
+    // Fetch member info
+    const member = await db.collection("members").findOne({ username });
+    if (!member) return res.status(404).json({ success: false, message: "Member not found" });
 
-    calculateBalance();
-    renderAll();
-  } catch(err) { console.error(err); }
-}
+    // Fetch transactions
+    const weekly = await db.collection("weekly").find({ username }).toArray();
+    const withdrawals = await db.collection("withdrawals").find({ username }).toArray();
+    const loans = await db.collection("loans").find({ username }).toArray();
 
-function calculateBalance() {
-  balance = 0;
-  memberData.weekly.forEach(w => balance += parseFloat(w.amount)||0);
-  memberData.withdrawals.forEach(w => balance -= parseFloat(w.withdrawn)||0);
-  memberData.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed||0);
-    const repaid = parseFloat(l.repayment||0);
-    balance -= borrowed;
-    balance += repaid;
-  });
-}
+    // Compute balance
+    let balance = 0;
+    weekly.forEach(w => balance += parseFloat(w.amount || 0));
+    withdrawals.forEach(w => balance -= parseFloat(w.amount || 0));
 
-function renderWeekly() {
-  const tbody = document.querySelector("#weeklyTable tbody"); tbody.innerHTML="";
-  memberData.weekly.forEach(w => {
-    const row = document.createElement("tr");
-    row.innerHTML = `<td>${w.date||''}</td><td>${parseFloat(w.amount||0).toFixed(2)}</td>`;
-    tbody.appendChild(row);
-  });
-}
+    loans.forEach(l => {
+      const borrowed = parseFloat(l.borrowed || 0);
+      const repaid = parseFloat(l.repayment || 0);
+      balance -= borrowed;
+      balance += repaid;
+    });
 
-function renderWithdrawals() {
-  const tbody = document.querySelector("#withdrawalTable tbody"); tbody.innerHTML="";
-  let current = balance;
-  memberData.withdrawals.forEach(w => {
-    current += parseFloat(w.withdrawn||0); // to show balance left
-    const row = document.createElement("tr");
-    row.innerHTML = `<td>${w.date||''}</td><td>${parseFloat(w.withdrawn||0).toFixed(2)}</td><td>${(current - parseFloat(w.withdrawn||0)).toFixed(2)}</td>`;
-    tbody.appendChild(row);
-    current -= parseFloat(w.withdrawn||0);
-  });
-}
+    res.json({
+      success: true,
+      member: { ...member, balance },
+      weekly,
+      withdrawals,
+      loans
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error fetching member data" });
+  }
+});
 
-function renderLoans() {
-  const tbody = document.querySelector("#loanTable tbody"); tbody.innerHTML="";
-  memberData.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed||0);
-    const repaid = parseFloat(l.repayment||0);
-    let loanLeft = Math.max(borrowed - repaid, 0);
-    let lateFee = 0;
-    const today = new Date();
-    const finish = l.finishDate ? new Date(l.finishDate) : null;
-    if(finish && today>finish && l.status==="ongoing") { lateFee = loanLeft*0.02; loanLeft += lateFee; }
-
-    const row = document.createElement("tr");
-    row.innerHTML = `<td>${l.dateTaken||''}</td><td>${l.loanRequested||0}</td><td>${borrowed}</td><td>${repaid}</td><td>${loanLeft.toFixed(2)}</td><td>${lateFee.toFixed(2)}</td><td>${l.status||''}</td>`;
-    tbody.appendChild(row);
-  });
-}
-
-function renderAll() {
-  document.getElementById("currentBalance").textContent = balance.toFixed(2);
-  renderWeekly();
-  renderWithdrawals();
-  renderLoans();
-}
-
-function scrollToSection(id) { document.getElementById(id).scrollIntoView({behavior:"smooth"}); }
-
-function logout() { localStorage.removeItem("token"); window.location.href="index.html"; }
-window.logout = logout;
+export default app;
 </script>
 
 <footer>

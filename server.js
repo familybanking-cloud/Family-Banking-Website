@@ -3,10 +3,19 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 const app = express();
 app.use(express.json());
+
+// For __dirname in ES module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static files from 'public' folder
+app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017";
@@ -44,7 +53,7 @@ app.post("/login", async (req, res) => {
     return res.status(400).json({ success: false, message: "Missing credentials" });
 
   try {
-    const user = await db.collection("users").findOne({ username });
+    const user = await db.collection("members").findOne({ username });
     if (!user) return res.status(401).json({ success: false, message: "Invalid username/password" });
 
     const match = await bcrypt.compare(password, user.password);
@@ -146,6 +155,11 @@ app.post("/api/admin-data/:collection", verifyToken, async (req, res) => {
     console.error(err);
     res.status(500).json({ success: false, message: "Error saving data" });
   }
+});
+
+// ---------- Serve index.html for root ----------
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // ---------- Server ----------

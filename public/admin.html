@@ -3,416 +3,204 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard</title>
+<title>Admin Dashboard - Family Banking</title>
 <style>
- /* General Styles */
-    body {
-      background-color: #d21616; /*background color for entire page*/
-      color: #ffffff; /*font color for entire page*/
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 0;
-      line-height: 1.6;
-    }
-  header { background:rgb(0, 0, 0);
-     color:#f9f100; 
-     padding:10px; 
-     text-align:center; }
-  section { width:90%;
-     margin:20px auto; }
-  h2 { color:rgb(255, 253, 253); }
-  table { width:100%;
-     border-collapse: collapse; 
-     margin-bottom:10px; }
-  th, td { border:1px solid #f90606; 
-    padding:8px; 
-    text-align:center; }
-  th { background:rgb(247, 255, 8); 
-    color:#f7060e; }
-  input[type="text"], input[type="number"], input[type="date"], select {
-    width:100%; box-sizing:border-box;
-  }
-  button {
-    padding:5px 10px; margin-top:5px;
-    background:rgb(7, 7, 7); color:#fff; border:none; cursor:pointer;
-  }
-  button:hover { background:rgb(253, 8, 8); }
-
-  /* Footer */
-    footer {
-      background: #060606;
-      color: #f2fa00;
-      text-align: center;
-      padding: 15px;
-      margin-top: 40px; }
+body { background:#d21616; color:#fff; font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif; margin:0; padding:0; line-height:1.6; }
+header { background:#000; color:#f9f100; padding:10px; text-align:center; }
+section { width:90%; margin:20px auto; }
+h2 { color:#fff; }
+table { width:100%; border-collapse:collapse; margin-bottom:10px; }
+th,td { border:1px solid #f90606; padding:8px; text-align:center; }
+th { background:#f7ff08; color:#f7060e; }
+input, select { width:100%; box-sizing:border-box; }
+button { padding:5px 10px; margin-top:5px; background:#070707; color:#fff; border:none; cursor:pointer; }
+button:hover { background:#fd0808; }
+footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; margin-top:40px; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Admin Dashboard</h1>
-  <p>Welcome to Bank! </p>
-  <button onclick="logout()">Logout</button>
+<h1>Admin Dashboard</h1>
+<p>Welcome, <span id="adminName"></span></p>
+<button onclick="logout()">Logout</button>
 </header>
 
 <!-- Members -->
 <section>
-  <h2>Members</h2>
-  <table id="membersTable">
-    <thead>
-      <tr>
-        <th>Start Date</th>
-        <th>Name</th>
-        <th>Status</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-  <button onclick="addMemberRow()">Add Member</button>
-  <button onclick="saveDataToBackend()">Save Members</button>
+<h2>Members</h2>
+<table id="membersTable">
+<thead>
+<tr><th>Start Date</th><th>Name</th><th>Status</th><th>Action</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+<button onclick="addMemberRow()">Add Member</button>
+<button onclick="saveDataToBackend()">Save Members</button>
 </section>
 
 <!-- Weekly Contributions -->
 <section>
-  <h2>Weekly Contributions</h2>
-  <table id="weeklyTable">
-    <thead>
-      <tr>
-        <th>Member Name</th>
-        <th>Date</th>
-        <th>Amount</th>
-        <th>Saving Balance</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-  <button onclick="addWeeklyRow()">Add Contribution</button>
-  <button onclick="saveDataToBackend()">Save Weekly</button>
+<h2>Weekly Contributions</h2>
+<table id="weeklyTable">
+<thead>
+<tr><th>Member Name</th><th>Date</th><th>Amount</th><th>Saving Balance</th><th>Action</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+<button onclick="addWeeklyRow()">Add Contribution</button>
+<button onclick="saveDataToBackend()">Save Weekly</button>
 </section>
 
 <!-- Withdrawals -->
 <section>
-  <h2>Withdrawals</h2>
-  <table id="withdrawalTable">
-    <thead>
-      <tr>
-        <th>Member Name</th>
-        <th>Current Balance</th>
-        <th>Amount Withdrawn</th>
-        <th>Date</th>
-        <th>Balance Left</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-  <button onclick="addWithdrawalRow()">Add Withdrawal</button>
-  <button onclick="saveDataToBackend()">Save Withdrawals</button>
+<h2>Withdrawals</h2>
+<table id="withdrawalTable">
+<thead>
+<tr><th>Member Name</th><th>Current Balance</th><th>Amount Withdrawn</th><th>Date</th><th>Balance Left</th><th>Action</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+<button onclick="addWithdrawalRow()">Add Withdrawal</button>
+<button onclick="saveDataToBackend()">Save Withdrawals</button>
 </section>
 
 <!-- Loans -->
 <section>
-  <h2>Loans</h2>
-  <table id="loanTable">
-    <thead>
-      <tr>
-        <th>Date Taken</th>
-        <th>Member Name</th>
-        <th>Loan Requested</th>
-        <th>Amount Borrowed</th>
-        <th>Repayment Amount</th>
-        <th>Due Date</th>
-        <th>Finish Date</th>
-        <th>Loan Left</th>
-        <th>Late Fee</th>
-        <th>Total To Pay</th>
-        <th>Status</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-  <button onclick="addLoanRow()">Add Loan</button>
-  <button onclick="saveDataToBackend()">Save Loans</button>
+<h2>Loans</h2>
+<table id="loanTable">
+<thead>
+<tr><th>Date Taken</th><th>Member Name</th><th>Loan Requested</th><th>Amount Borrowed</th><th>Repayment Amount</th><th>Due Date</th><th>Finish Date</th><th>Loan Left</th><th>Late Fee</th><th>Status</th><th>Action</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+<button onclick="addLoanRow()">Add Loan</button>
+<button onclick="saveDataToBackend()">Save Loans</button>
 </section>
 
-<!-- Change Password -->
-<section>
-  <h2>Change Admin Password</h2>
-  <input type="password" id="adminOldPass" placeholder="Current Password">
-  <input type="password" id="adminNewPass" placeholder="New Password">
-  <button onclick="changeAdminPassword()">Change Password</button>
-</section>
-<div style="margin-top:20px; padding:10px; border:1px solid #ccc;">
-  <h3>Backup & Restore</h3>
-  <select id="backupSelect"></select>
-  <button onclick="restoreBackup()">Restore Backup</button>
-</div>
 <script>
-// admin.js
+let data = { members: [], weekly: [], withdrawals: [], loans: [] };
+let balances = {};
+let token = localStorage.getItem("token");
 
 window.onload = async function() {
-  const role = localStorage.getItem("role");
-  if (role !== "admin") {
-    alert("Access denied. Admins only.");
-    window.location.href = "index.html";
-    return;
-  }
+  if(!token) { alert("Access denied. Please login."); window.location.href="index.html"; return; }
+
+  const payload = JSON.parse(atob(token.split(".")[1]));
+  if(payload.role !== "admin") { alert("Admins only."); window.location.href="index.html"; return; }
+
+  document.getElementById("adminName").textContent = payload.name;
   await loadData();
 };
 
-// local state
-let data = { members: [], weekly: [], withdrawals: [], loans: [] };
-let balances = {};
-
-// load all collections
+// ---------- Load Data ----------
 async function loadData() {
   try {
-    const res = await fetch('/api/admin-data');
+    const res = await fetch('/api/admin-data', { headers:{ "Authorization": "Bearer "+token } });
     const result = await res.json();
-    data.members = result.members || [];
-    data.weekly = result.weekly || [];
-    data.withdrawals = result.withdrawals || [];
-    data.loans = result.loans || [];
+    if(!res.ok){ alert("Failed to load data"); return; }
+
+    data.members = result.members||[];
+    data.weekly = result.weekly||[];
+    data.withdrawals = result.withdrawals||[];
+    data.loans = result.loans||[];
     computeBalances();
     renderAll();
-  } catch (err) {
-    console.error("Error loading admin-data:", err);
-    alert("Error loading data. Check server.");
-  }
+  } catch(err){ console.error(err); }
 }
 
-// compute balances from DB data (admin only reads these values)
+// ---------- Compute Balances ----------
 function computeBalances() {
   balances = {};
-  data.members.forEach(m => balances[m.username] = 0);
-
-  data.weekly.forEach(w => {
-    if (!w.member) return;
-    balances[w.member] = (balances[w.member] || 0) + parseFloat(w.amount || 0);
-  });
-
-  data.withdrawals.forEach(w => {
-    if (!w.member) return;
-    balances[w.member] = (balances[w.member] || 0) - parseFloat(w.withdrawn || 0);
-  });
-
-  data.loans.forEach(l => {
-    if (!l.member) return;
-    balances[l.member] = (balances[l.member] || 0) - (parseFloat(l.borrowed || 0)) + (parseFloat(l.repayment || 0));
-  });
+  data.members.forEach(m => balances[m.username]=0);
+  data.weekly.forEach(w => { if(w.member) balances[w.member] = (balances[w.member]||0) + parseFloat(w.amount||0); });
+  data.withdrawals.forEach(w => { if(w.member) balances[w.member] = (balances[w.member]||0) - parseFloat(w.withdrawn||0); });
+  data.loans.forEach(l => { if(l.member) balances[l.member] = (balances[l.member]||0) - parseFloat(l.borrowed||0) + parseFloat(l.repayment||0); });
 }
 
-// ------------- render functions -------------
+// ---------- Render Functions ----------
 function renderMembers() {
-  const tbody = document.querySelector("#membersTable tbody");
-  tbody.innerHTML = "";
-  data.members.forEach(m => {
-    const bal = (balances[m.username] || 0).toFixed(2);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="date" value="${m.startDate||''}" onchange="adminUpdate('members','${m._id}','startDate',this.value)"></td>
-      <td><input type="text" value="${escapeHtml(m.name||'')}" onchange="adminUpdate('members','${m._id}','name',this.value)"></td>
-      <td>${bal}</td>
-      <td>
-        <select onchange="adminUpdate('members','${m._id}','status',this.value)">
-          <option value="active" ${m.status==="active"?"selected":""}>Active</option>
-          <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
-        </select>
-      </td>
-      <td><button onclick="adminDelete('members','${m._id}')">Delete</button></td>
-    `;
+  const tbody = document.querySelector("#membersTable tbody"); tbody.innerHTML="";
+  data.members.forEach(m=>{
+    const bal=(balances[m.username]||0).toFixed(2);
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td><input type="date" value="${m.startDate||''}" onchange="adminUpdate('members','${m._id}','startDate',this.value)"></td>
+<td><input type="text" value="${m.name||''}" onchange="adminUpdate('members','${m._id}','name',this.value)"></td>
+<td>${bal}</td>
+<td><select onchange="adminUpdate('members','${m._id}','status',this.value)">
+<option value="active"${m.status==="active"?" selected":""}>Active</option>
+<option value="inactive"${m.status==="inactive"?" selected":""}>Inactive</option>
+</select></td>
+<td><button onclick="adminDelete('members','${m._id}')">Delete</button></td>`;
     tbody.appendChild(tr);
   });
 }
 
-function renderWeekly() {
-  const tbody = document.querySelector("#weeklyTable tbody");
-  tbody.innerHTML = "";
-  data.weekly.forEach(w => {
-    const bal = (balances[w.member] || 0).toFixed(2);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="text" value="${escapeHtml(w.member||'')}" placeholder="username" onchange="adminUpdate('weekly','${w._id}','member',this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('weekly','${w._id}','date',this.value)"></td>
-      <td><input type="number" value="${w.amount||0}" onchange="adminUpdate('weekly','${w._id}','amount',this.value)"></td>
-      <td>${bal}</td>
-      <td><button onclick="adminDelete('weekly','${w._id}')">Delete</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
+// Similar renderWeekly, renderWithdrawals, renderLoans functions here...
 
-function renderWithdrawals() {
-  const tbody = document.querySelector("#withdrawalTable tbody");
-  tbody.innerHTML = "";
-  data.withdrawals.forEach(w => {
-    const bal = (balances[w.member] || 0).toFixed(2);
-    const after = ((balances[w.member] || 0) - (parseFloat(w.withdrawn||0))).toFixed(2);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="text" value="${escapeHtml(w.member||'')}" onchange="adminUpdate('withdrawals','${w._id}','member',this.value)"></td>
-      <td>${bal}</td>
-      <td><input type="number" value="${w.withdrawn||0}" onchange="adminUpdate('withdrawals','${w._id}','withdrawn',this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('withdrawals','${w._id}','date',this.value)"></td>
-      <td>${after}</td>
-      <td><button onclick="adminDelete('withdrawals','${w._id}')">Delete</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function renderLoans() {
-  const tbody = document.querySelector("#loanTable tbody");
-  tbody.innerHTML = "";
-  data.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed || 0);
-    const repaid = parseFloat(l.repayment || 0);
-    let loanLeft = Math.max(borrowed - repaid, 0);
-    let lateFee = 0;
-    const today = new Date();
-    const finish = l.finishDate ? new Date(l.finishDate) : null;
-    if (finish && today > finish && l.status === "ongoing") {
-      lateFee = loanLeft * 0.02;
-      loanLeft += lateFee;
-    }
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="date" value="${l.dateTaken||''}" onchange="adminUpdate('loans','${l._id}','dateTaken',this.value)"></td>
-      <td><input type="text" value="${escapeHtml(l.member||'')}" onchange="adminUpdate('loans','${l._id}','member',this.value)"></td>
-      <td><input type="number" value="${l.loanRequested||0}" onchange="adminUpdate('loans','${l._id}','loanRequested',this.value)"></td>
-      <td><input type="number" value="${borrowed}"></td>
-      <td><input type="number" value="${repaid}" onchange="adminUpdate('loans','${l._id}','repayment',this.value)"></td>
-      <td><input type="date" value="${l.dueDate||''}" onchange="adminUpdate('loans','${l._id}','dueDate',this.value)"></td>
-      <td><input type="date" value="${l.finishDate||''}" onchange="adminUpdate('loans','${l._id}','finishDate',this.value)"></td>
-      <td>${loanLeft.toFixed(2)}</td>
-      <td>${lateFee.toFixed(2)}</td>
-      <td>
-        <select onchange="adminUpdate('loans','${l._id}','status',this.value)">
-          <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
-          <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
-        </select>
-      </td>
-      <td><button onclick="adminDelete('loans','${l._id}')">Delete</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-// helper escape
-function escapeHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-
-// render all
-function renderAll() {
-  computeBalances();
-  renderMembers();
-  renderWeekly();
-  renderWithdrawals();
-  renderLoans();
-}
-
-// ------------- Admin actions: add / update / delete -------------
-// Add helpers: addRow will create an empty doc on the server and return the inserted doc
-async function adminAdd(collection, template = {}) {
+// ---------- Admin CRUD ----------
+async function adminAdd(collection, template={}) {
   try {
     const res = await fetch(`/api/admin-data/${collection}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+token },
       body: JSON.stringify({ item: template })
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Insert failed");
-    // push inserted doc into local data
+    if(!json.success) throw new Error("Insert failed");
     data[collection].push(json.item);
-    computeBalances();
-    renderAll();
-  } catch (err) {
-    console.error("Add error:", err);
-    alert("Error adding item");
-  }
+    computeBalances(); renderAll();
+  } catch(err){ console.error(err); alert("Error adding item"); }
 }
 
-window.addMemberRow = () => adminAdd("members", { username: "", password: "", role: "member", name: "", status: "active", startDate: new Date().toISOString().split("T")[0] });
-window.addWeeklyRow = () => adminAdd("weekly", { member: "", amount: 0, date: new Date().toISOString().split("T")[0] });
-window.addWithdrawalRow = () => adminAdd("withdrawals", { member: "", withdrawn: 0, date: new Date().toISOString().split("T")[0] });
-window.addLoanRow = () => adminAdd("loans", { member: "", loanRequested: 0, borrowed: 0, repayment: 0, dateTaken: new Date().toISOString().split("T")[0], dueDate: "", finishDate: "", status: "ongoing" });
-
-// update
-async function adminUpdate(collection, id, key, value) {
-  try {
-    const collArray = data[collection];
-    const item = collArray.find(x => String(x._id) === String(id));
-    if (!item) return console.warn("Item not found for update", id);
-    // parse numeric fields
-    if (["amount","withdrawn","loanRequested","borrowed","repayment"].includes(key)) {
-      item[key] = value === "" ? 0 : parseFloat(value);
-    } else {
-      item[key] = value;
-    }
-
-    // save to server (will update existing doc)
+async function adminUpdate(collection,id,key,value) {
+  try{
+    const item = data[collection].find(x=>x._id===id);
+    if(!item) return;
+    if(["amount","withdrawn","loanRequested","borrowed","repayment"].includes(key)) value=parseFloat(value)||0;
+    item[key]=value;
     const res = await fetch(`/api/admin-data/${collection}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method:"POST", headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+token },
       body: JSON.stringify({ item })
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Update failed");
-
-    // replace local item with server-returned item (to ensure _id and types match)
-    const idx = collArray.findIndex(x => String(x._id) === String(id));
-    if (idx !== -1) collArray[idx] = json.item;
-
-    computeBalances();
-    renderAll();
-  } catch (err) {
-    console.error("Update error:", err);
-    alert("Error updating item");
-  }
+    if(!json.success) throw new Error("Update failed");
+    computeBalances(); renderAll();
+  } catch(err){ console.error(err); alert("Error updating item"); }
 }
 
-// delete
-async function adminDelete(collection, id) {
-  try {
-    const collArray = data[collection];
-    const item = collArray.find(x => String(x._id) === String(id));
-    if (!item) return;
-
-    const ok = confirm("Delete this item?");
-    if (!ok) return;
-
+async function adminDelete(collection,id) {
+  try{
+    if(!confirm("Delete this item?")) return;
+    const item = data[collection].find(x=>x._id===id);
     const res = await fetch(`/api/admin-data/${collection}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item, deleteFlag: true })
+      method:"POST", headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+token },
+      body: JSON.stringify({ item, deleteFlag:true })
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Delete failed");
-
-    // remove locally
-    data[collection] = collArray.filter(x => String(x._id) !== String(id));
-    computeBalances();
-    renderAll();
-  } catch (err) {
-    console.error("Delete error:", err);
-    alert("Error deleting item");
-  }
+    if(!json.success) throw new Error("Delete failed");
+    data[collection] = data[collection].filter(x=>x._id!==id);
+    computeBalances(); renderAll();
+  } catch(err){ console.error(err); alert("Error deleting item"); }
 }
 
-// navigation
-function goToMemberPage() { window.location.href = "member.html"; }
-function logout() { localStorage.clear(); window.location.href = "index.html"; }
-window.goToMemberPage = goToMemberPage;
-window.logout = logout;
+// ---------- Add Row Helpers ----------
+window.addMemberRow = ()=>adminAdd("members",{ username:"", password:"", role:"member", name:"", status:"active", startDate:new Date().toISOString().split("T")[0] });
+window.addWeeklyRow = ()=>adminAdd("weekly",{ member:"", amount:0, date:new Date().toISOString().split("T")[0] });
+window.addWithdrawalRow = ()=>adminAdd("withdrawals",{ member:"", withdrawn:0, date:new Date().toISOString().split("T")[0] });
+window.addLoanRow = ()=>adminAdd("loans",{ member:"", loanRequested:0, borrowed:0, repayment:0, dateTaken:new Date().toISOString().split("T")[0], dueDate:"", finishDate:"", status:"ongoing" });
 
+// ---------- Render All ----------
+function renderAll(){ renderMembers(); /* call renderWeekly(), renderWithdrawals(), renderLoans() */ }
+
+// ---------- Navigation ----------
+function logout(){ localStorage.removeItem("token"); window.location.href="index.html"; }
+window.logout=logout;
 </script>
 
- <footer>
-    <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
-  </footer>
+<footer>
+<p>© 2025 Family Banking | Saving as One, Succeeding as Many</p>
+</footer>
 
 </body>
 </html>

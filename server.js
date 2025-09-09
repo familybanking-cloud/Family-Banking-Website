@@ -39,7 +39,7 @@ async function seedDatabase() {
   const adminExists = await membersCollection.findOne({ username: "admin" });
   if (!adminExists) {
     await membersCollection.insertOne({
-      username: "admin",
+      username: "Jal",
       password: "adminfb2025",
       role: "admin",
       name: "Administrator",

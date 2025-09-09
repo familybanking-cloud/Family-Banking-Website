@@ -162,9 +162,10 @@ window.onload = async function() {
 };
 
 // ---------- Data ----------
-let data = { members: [], weekly: [], withdrawals: [], loans: [], balances: {} };
+let data = { members: [], weekly: [], withdrawals: [], loans: [] };
+let balances = {};
 
-// ---------- Load ----------
+// ---------- Load Data ----------
 async function loadData() {
   try {
     const res = await fetch('/api/admin-data');
@@ -173,31 +174,38 @@ async function loadData() {
     data.weekly = result.weekly || [];
     data.withdrawals = result.withdrawals || [];
     data.loans = result.loans || [];
-    computeBalances();
+    calculateBalances();
     renderAll();
   } catch (err) {
     console.error("Error loading data:", err);
   }
 }
 
-// ---------- Compute Balances ----------
-function computeBalances() {
-  const balances = {};
+// ---------- Calculate Balances ----------
+function calculateBalances() {
+  balances = {};
   data.members.forEach(m => balances[m.username] = 0);
 
+  // Weekly contributions
   data.weekly.forEach(w => {
-    if (w.member) balances[w.member] = (balances[w.member] || 0) + parseFloat(w.amount || 0);
+    if (!balances[w.member]) balances[w.member] = 0;
+    balances[w.member] += parseFloat(w.amount) || 0;
   });
 
+  // Withdrawals
   data.withdrawals.forEach(w => {
-    if (w.member) balances[w.member] = (balances[w.member] || 0) - parseFloat(w.withdrawn || 0);
+    if (!balances[w.member]) balances[w.member] = 0;
+    balances[w.member] -= parseFloat(w.withdrawn) || 0;
   });
 
+  // Loans
   data.loans.forEach(l => {
-    if (l.member) balances[l.member] = (balances[l.member] || 0) - parseFloat(l.borrowed || 0) + parseFloat(l.repayment || 0);
+    if (!balances[l.member]) balances[l.member] = 0;
+    const borrowed = parseFloat(l.borrowed || 0);
+    const repaid = parseFloat(l.repayment || 0);
+    balances[l.member] -= borrowed;
+    balances[l.member] += repaid;
   });
-
-  data.balances = balances;
 }
 
 // ---------- Render Functions ----------
@@ -205,14 +213,13 @@ function renderMembers() {
   const tbody = document.querySelector("#membersTable tbody");
   tbody.innerHTML = "";
   data.members.forEach(m => {
-    const balance = data.balances[m.username] || 0;
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="date" value="${m.startDate||''}" onchange="updateMember('${m._id}', 'startDate', this.value)"></td>
-      <td><input type="text" value="${m.name||''}" onchange="updateMember('${m._id}', 'name', this.value)"></td>
-      <td>${balance.toFixed(2)}</td>
+      <td><input type="date" value="${m.startDate||''}" onchange="updateMember('${m._id}','startDate',this.value)"></td>
+      <td><input type="text" value="${m.name||''}" onchange="updateMember('${m._id}','name',this.value)"></td>
+      <td>${(balances[m.username]||0).toFixed(2)}</td>
       <td>
-        <select onchange="updateMember('${m._id}', 'status', this.value)">
+        <select onchange="updateMember('${m._id}','status',this.value)">
           <option value="active" ${m.status==="active"?"selected":""}>Active</option>
           <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
         </select>
@@ -227,13 +234,12 @@ function renderWeekly() {
   const tbody = document.querySelector("#weeklyTable tbody");
   tbody.innerHTML = "";
   data.weekly.forEach(w => {
-    const balance = data.balances[w.member] || 0;
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="text" value="${w.member||''}" onchange="updateWeekly('${w._id}', 'member', this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="updateWeekly('${w._id}', 'date', this.value)"></td>
-      <td><input type="number" value="${w.amount||0}" onchange="updateWeekly('${w._id}', 'amount', this.value)"></td>
-      <td>${balance.toFixed(2)}</td>
+      <td><input type="text" value="${w.member||''}" onchange="updateWeekly('${w._id}','member',this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="updateWeekly('${w._id}','date',this.value)"></td>
+      <td><input type="number" value="${w.amount||0}" onchange="updateWeekly('${w._id}','amount',this.value)"></td>
+      <td>${(balances[w.member]||0).toFixed(2)}</td>
       <td><button onclick="deleteRow('weekly','${w._id}')">Delete</button></td>
     `;
     tbody.appendChild(row);
@@ -244,14 +250,13 @@ function renderWithdrawals() {
   const tbody = document.querySelector("#withdrawalTable tbody");
   tbody.innerHTML = "";
   data.withdrawals.forEach(w => {
-    const balance = data.balances[w.member] || 0;
-    const after = balance - (parseFloat(w.withdrawn)||0);
+    const after = (balances[w.member]||0) - (parseFloat(w.withdrawn)||0);
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="text" value="${w.member||''}" onchange="updateWithdrawal('${w._id}', 'member', this.value)"></td>
-      <td>${balance.toFixed(2)}</td>
-      <td><input type="number" value="${w.withdrawn||0}" onchange="updateWithdrawal('${w._id}', 'withdrawn', this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="updateWithdrawal('${w._id}', 'date', this.value)"></td>
+      <td><input type="text" value="${w.member||''}" onchange="updateWithdrawal('${w._id}','member',this.value)"></td>
+      <td>${(balances[w.member]||0).toFixed(2)}</td>
+      <td><input type="number" value="${w.withdrawn||0}" onchange="updateWithdrawal('${w._id}','withdrawn',this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="updateWithdrawal('${w._id}','date',this.value)"></td>
       <td>${after.toFixed(2)}</td>
       <td><button onclick="deleteRow('withdrawals','${w._id}')">Delete</button></td>
     `;
@@ -263,30 +268,30 @@ function renderLoans() {
   const tbody = document.querySelector("#loanTable tbody");
   tbody.innerHTML = "";
   data.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed||0);
-    const repaid = parseFloat(l.repayment||0);
+    const borrowed = parseFloat(l.borrowed || 0);
+    const repaid = parseFloat(l.repayment || 0);
     let loanLeft = Math.max(borrowed - repaid, 0);
     let lateFee = 0;
     const today = new Date();
     const finish = l.finishDate ? new Date(l.finishDate) : null;
-    if (finish && today > finish && l.status === "ongoing") {
+    if(finish && today > finish && l.status==="ongoing") {
       lateFee = loanLeft * 0.02;
       loanLeft += lateFee;
     }
 
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="date" value="${l.dateTaken||''}" onchange="updateLoan('${l._id}', 'dateTaken', this.value)"></td>
-      <td><input type="text" value="${l.member||''}" onchange="updateLoan('${l._id}', 'member', this.value)"></td>
-      <td><input type="number" value="${l.loanRequested||0}" onchange="updateLoan('${l._id}', 'loanRequested', this.value)"></td>
+      <td><input type="date" value="${l.dateTaken||''}" onchange="updateLoan('${l._id}','dateTaken',this.value)"></td>
+      <td><input type="text" value="${l.member||''}" onchange="updateLoan('${l._id}','member',this.value)"></td>
+      <td><input type="number" value="${l.loanRequested||0}" onchange="updateLoan('${l._id}','loanRequested',this.value)"></td>
       <td><input type="number" value="${borrowed}"></td>
-      <td><input type="number" value="${repaid}" onchange="updateLoan('${l._id}', 'repayment', this.value)"></td>
-      <td><input type="date" value="${l.dueDate||''}" onchange="updateLoan('${l._id}', 'dueDate', this.value)"></td>
-      <td><input type="date" value="${l.finishDate||''}" onchange="updateLoan('${l._id}', 'finishDate', this.value)"></td>
+      <td><input type="number" value="${repaid}" onchange="updateLoan('${l._id}','repayment',this.value)"></td>
+      <td><input type="date" value="${l.dueDate||''}" onchange="updateLoan('${l._id}','dueDate',this.value)"></td>
+      <td><input type="date" value="${l.finishDate||''}" onchange="updateLoan('${l._id}','finishDate',this.value)"></td>
       <td>${loanLeft.toFixed(2)}</td>
       <td>${lateFee.toFixed(2)}</td>
       <td>
-        <select onchange="updateLoan('${l._id}', 'status', this.value)">
+        <select onchange="updateLoan('${l._id}','status',this.value)">
           <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
           <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
         </select>
@@ -303,34 +308,34 @@ function addWeeklyRow() { data.weekly.push({ member:"", date:"", amount:0 }); re
 function addWithdrawalRow() { data.withdrawals.push({ member:"", withdrawn:0, date:"" }); renderAll(); }
 function addLoanRow() { data.loans.push({ dateTaken:"", member:"", loanRequested:0, borrowed:0, repayment:0, dueDate:"", finishDate:"", status:"ongoing" }); renderAll(); }
 
-async function deleteRow(collection,id) {
+async function deleteRow(collection, id) {
   const item = data[collection].find(x=>x._id===id);
-  if(!item) return;
   data[collection] = data[collection].filter(x=>x._id!==id);
-  await saveToBackend(collection,item,true);
-  await loadData();
+  await saveToBackend(collection, item, true);
+  calculateBalances();
+  renderAll();
 }
 
 // ---------- Update ----------
-function updateMember(id,key,value) { const m = data.members.find(x=>x._id===id); if(m){ m[key]=value; saveToBackend('members',m).then(computeBalances).then(renderAll); } }
-function updateWeekly(id,key,value) { const w = data.weekly.find(x=>x._id===id); if(w){ w[key]=key==='amount'?parseFloat(value):value; saveToBackend('weekly',w).then(computeBalances).then(renderAll); } }
-function updateWithdrawal(id,key,value) { const w = data.withdrawals.find(x=>x._id===id); if(w){ w[key]=key==='withdrawn'?parseFloat(value):value; saveToBackend('withdrawals',w).then(computeBalances).then(renderAll); } }
-function updateLoan(id,key,value) { const l = data.loans.find(x=>x._id===id); if(l){ l[key]=['loanRequested','borrowed','repayment'].includes(key)?parseFloat(value):value; saveToBackend('loans',l).then(computeBalances).then(renderAll); } }
+function updateMember(id,key,value) { const m=data.members.find(x=>x._id===id); if(m){ m[key]=value; saveToBackend('members', m); calculateBalances(); renderAll(); } }
+function updateWeekly(id,key,value) { const w=data.weekly.find(x=>x._id===id); if(w){ w[key]=parseFloat(value)||value; saveToBackend('weekly', w); calculateBalances(); renderAll(); } }
+function updateWithdrawal(id,key,value) { const w=data.withdrawals.find(x=>x._id===id); if(w){ w[key]=(key==='withdrawn'?parseFloat(value):value); saveToBackend('withdrawals', w); calculateBalances(); renderAll(); } }
+function updateLoan(id,key,value) { const l=data.loans.find(x=>x._id===id); if(l){ l[key]=['loanRequested','borrowed','repayment'].includes(key)?parseFloat(value):value; saveToBackend('loans', l); calculateBalances(); renderAll(); } }
 
 // ---------- Save to Backend ----------
-async function saveToBackend(collection,item=null,deleteFlag=false) {
+async function saveToBackend(collection, item=null, deleteFlag=false) {
   try {
-    await fetch(`/api/admin-data/${collection}`,{
+    await fetch(`/api/admin-data/${collection}`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ item, deleteFlag })
     });
-  } catch(err) { console.error("Error saving to backend:",err); alert("Error saving data."); }
+  } catch(err) { console.error("Error saving:", err); alert("Error saving data."); }
 }
 
 // ---------- Render All ----------
 function renderAll() {
-  computeBalances();
+  calculateBalances();
   renderMembers();
   renderWeekly();
   renderWithdrawals();
@@ -338,19 +343,16 @@ function renderAll() {
 }
 
 // ---------- Navigation ----------
-function goToMemberPage(){ window.location.href="member.html"; }
-function logout(){ localStorage.clear(); window.location.href="index.html"; }
-
-window.addMemberRow = addMemberRow;
-window.addWeeklyRow = addWeeklyRow;
-window.addWithdrawalRow = addWithdrawalRow;
-window.addLoanRow = addLoanRow;
-window.deleteRow = deleteRow;
-window.saveDataToBackend = saveToBackend;
-window.goToMemberPage = goToMemberPage;
-window.logout = logout;
+function goToMemberPage() { window.location.href="member.html"; }
+function logout() { localStorage.clear(); window.location.href="index.html"; }
+window.addMemberRow=addMemberRow;
+window.addWeeklyRow=addWeeklyRow;
+window.addWithdrawalRow=addWithdrawalRow;
+window.addLoanRow=addLoanRow;
+window.deleteRow=deleteRow;
+window.goToMemberPage=goToMemberPage;
+window.logout=logout;
 </script>
-
 
  <footer>
     <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>

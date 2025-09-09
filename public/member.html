@@ -155,129 +155,138 @@
 </div>
 
 <script>
-const role = localStorage.getItem("role");
-const username = localStorage.getItem("loggedInUser");
-const displayName = localStorage.getItem("displayName") || username;
+window.onload = async function() {
+  const username = localStorage.getItem("username");
+  const role = localStorage.getItem("role");
 
-if (!username || role !== "member") {
-  alert("Please log in as a member.");
-  window.location.href = "index.html";
-}
+  if (!username || role !== "member") {
+    alert("Access denied. Members only.");
+    window.location.href = "index.html";
+    return;
+  }
 
-document.getElementById("memberName").innerText = displayName;
+  await loadMemberData(username);
+};
 
-let dataset = { weekly: [], withdrawals: [], loans: [] };
+// ---------- Data ----------
+let memberData = { weekly: [], withdrawals: [], loans: [] };
+let balance = 0;
 
-// ---------- Load Data ----------
-async function loadData() {
+// ---------- Load Member Data ----------
+async function loadMemberData(username) {
   try {
-    const res = await fetch(`/api/member-data/${encodeURIComponent(username)}`);
+    const res = await fetch(`/api/member-data/${username}`);
     const result = await res.json();
-    if (!result.success) throw new Error(result.message || "Could not load data");
-    dataset = { weekly: result.weekly, withdrawals: result.withdrawals, loans: result.loans };
-    render();
+
+    if (!result.success) {
+      alert("Error fetching data.");
+      return;
+    }
+
+    memberData.weekly = result.weekly || [];
+    memberData.withdrawals = result.withdrawals || [];
+    memberData.loans = result.loans || [];
+
+    calculateBalance();
+    renderAll();
   } catch (err) {
-    console.error(err);
-    alert("Error fetching member data.");
+    console.error("Error loading member data:", err);
   }
 }
 
 // ---------- Calculate Balance ----------
 function calculateBalance() {
-  let total = 0;
-  dataset.weekly.forEach(w => total += parseFloat(w.amount) || 0);
-  dataset.withdrawals.forEach(w => total -= parseFloat(w.withdrawn) || 0);
-  dataset.loans.forEach(l => total -= parseFloat(l.borrowed) || 0);
-  dataset.loans.forEach(l => total += parseFloat(l.repayment) || 0);
-  return total;
-}
+  balance = 0;
 
-// ---------- Render ----------
-function render() {
-  document.getElementById("currentBalance").innerText = calculateBalance().toFixed(2);
+  // Contributions
+  memberData.weekly.forEach(w => balance += parseFloat(w.amount) || 0);
 
-  const wb = document.querySelector("#weeklyTable tbody");
-  wb.innerHTML = "";
-  dataset.weekly.forEach(w => wb.innerHTML += `<tr><td>${w.date||""}</td><td>${(parseFloat(w.amount)||0).toFixed(2)}</td></tr>`);
+  // Withdrawals
+  memberData.withdrawals.forEach(w => balance -= parseFloat(w.withdrawn) || 0);
 
-  const wd = document.querySelector("#withdrawalTable tbody");
-  wd.innerHTML = "";
-  dataset.withdrawals.forEach(w => wd.innerHTML += `<tr><td>${w.date||""}</td><td>${(parseFloat(w.withdrawn)||0).toFixed(2)}</td></tr>`);
-
-  const lb = document.querySelector("#loanTable tbody");
-  lb.innerHTML = "";
-  dataset.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed) || 0;
-    const repaid = parseFloat(l.repayment) || 0;
-    const left = Math.max(borrowed - repaid, 0);
-    let late = 0;
-    const today = new Date();
-    const finish = l.finishDate ? new Date(l.finishDate) : null;
-    if (finish && today > finish && l.status === "ongoing") {
-      late = left * 0.02;
-    }
-    lb.innerHTML += `<tr>
-      <td>${l.dateTaken||""}</td>
-      <td>${(parseFloat(l.loanRequested)||0).toFixed(2)}</td>
-      <td>${borrowed.toFixed(2)}</td>
-      <td>${repaid.toFixed(2)}</td>
-      <td>${left.toFixed(2)}</td>
-      <td>${late.toFixed(2)}</td>
-      <td>${l.status||""}</td>
-    </tr>`;
+  // Loans
+  memberData.loans.forEach(l => {
+    const borrowed = parseFloat(l.borrowed || 0);
+    const repaid = parseFloat(l.repayment || 0);
+    balance -= borrowed;
+    balance += repaid;
   });
 }
 
-// ---------- Request Withdrawal ----------
-async function requestWithdrawal(amount) {
-  try {
-    if (!amount || amount <= 0) { alert("Enter a valid amount"); return; }
-    const res = await fetch('/member/withdraw', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, amount, date: new Date().toISOString().split("T")[0] })
-    });
-    const result = await res.json();
-    if (!result.success) throw new Error(result.message || "Failed to withdraw");
-    alert("Withdrawal successful!");
-    await loadData();
-  } catch(err) {
-    console.error(err); 
-    alert("Error requesting withdrawal.");
-  }
+// ---------- Render Functions ----------
+function renderWeekly() {
+  const tbody = document.querySelector("#weeklyTable tbody");
+  tbody.innerHTML = "";
+  memberData.weekly.forEach(w => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${w.date || ''}</td>
+      <td>${parseFloat(w.amount || 0).toFixed(2)}</td>
+    `;
+    tbody.appendChild(row);
+  });
 }
 
-// ---------- Request Loan ----------
-async function requestLoan(amount) {
-  try {
-    if (!amount || amount <= 0) { alert("Enter a valid amount"); return; }
-    const res = await fetch('/member/request-loan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, amount, date: new Date().toISOString().split("T")[0] })
-    });
-    const result = await res.json();
-    if (!result.success) throw new Error(result.message || "Failed to request loan");
-    alert("Loan request submitted!");
-    await loadData();
-  } catch(err) {
-    console.error(err); 
-    alert("Error requesting loan.");
-  }
+function renderWithdrawals() {
+  const tbody = document.querySelector("#withdrawalTable tbody");
+  tbody.innerHTML = "";
+  memberData.withdrawals.forEach(w => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${w.date || ''}</td>
+      <td>${parseFloat(w.withdrawn || 0).toFixed(2)}</td>
+    `;
+    tbody.appendChild(row);
+  });
 }
 
-// ---------- Logout ----------
+function renderLoans() {
+  const tbody = document.querySelector("#loanTable tbody");
+  tbody.innerHTML = "";
+  memberData.loans.forEach(l => {
+    const borrowed = parseFloat(l.borrowed || 0);
+    const repaid = parseFloat(l.repayment || 0);
+    let loanLeft = Math.max(borrowed - repaid, 0);
+    let lateFee = 0;
+    const today = new Date();
+    const finish = l.finishDate ? new Date(l.finishDate) : null;
+    if(finish && today > finish && l.status==="ongoing") {
+      lateFee = loanLeft * 0.02;
+      loanLeft += lateFee;
+    }
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${l.dateTaken || ''}</td>
+      <td>${l.loanRequested || 0}</td>
+      <td>${borrowed}</td>
+      <td>${repaid}</td>
+      <td>${l.dueDate || ''}</td>
+      <td>${l.finishDate || ''}</td>
+      <td>${loanLeft.toFixed(2)}</td>
+      <td>${lateFee.toFixed(2)}</td>
+      <td>${l.status || ''}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+// ---------- Render All ----------
+function renderAll() {
+  document.querySelector("#balance").textContent = balance.toFixed(2);
+  renderWeekly();
+  renderWithdrawals();
+  renderLoans();
+}
+
+// ---------- Navigation ----------
 function logout() {
   localStorage.clear();
   window.location.href = "index.html";
 }
-
 window.logout = logout;
-window.requestWithdrawal = requestWithdrawal;
-window.requestLoan = requestLoan;
+</script>
 
-loadData();
-</script
  <footer>
     <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
   </footer>

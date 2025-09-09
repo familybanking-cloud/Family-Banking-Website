@@ -187,12 +187,7 @@ function calculateBalance() {
   let total = 0;
   dataset.weekly.forEach(w => total += parseFloat(w.amount) || 0);
   dataset.withdrawals.forEach(w => total -= parseFloat(w.withdrawn) || 0);
-  dataset.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed) || 0;
-    const repaid = parseFloat(l.repayment) || 0;
-    total -= borrowed;
-    total += repaid;
-  });
+  dataset.loans.forEach(l => total = total - (parseFloat(l.borrowed)||0) + (parseFloat(l.repayment)||0));
   return total;
 }
 
@@ -202,38 +197,28 @@ function render() {
 
   const wb = document.querySelector("#weeklyTable tbody");
   wb.innerHTML = "";
-  dataset.weekly.forEach(w => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${w.date || ""}</td><td>${(parseFloat(w.amount)||0).toFixed(2)}</td>`;
-    wb.appendChild(tr);
-  });
+  dataset.weekly.forEach(w => wb.innerHTML += `<tr><td>${w.date||""}</td><td>${(parseFloat(w.amount)||0).toFixed(2)}</td></tr>`);
 
   const wd = document.querySelector("#withdrawalTable tbody");
   wd.innerHTML = "";
-  dataset.withdrawals.forEach(w => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${w.date || ""}</td><td>${(parseFloat(w.withdrawn)||0).toFixed(2)}</td>`;
-    wd.appendChild(tr);
-  });
+  dataset.withdrawals.forEach(w => wd.innerHTML += `<tr><td>${w.date||""}</td><td>${(parseFloat(w.withdrawn)||0).toFixed(2)}</td></tr>`);
 
   const lb = document.querySelector("#loanTable tbody");
   lb.innerHTML = "";
   dataset.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed) || 0;
-    const repaid = parseFloat(l.repayment) || 0;
-    const left = Math.max(borrowed - repaid, 0);
-    const late = 0; 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${l.dateTaken || ""}</td>
+    const borrowed = parseFloat(l.borrowed)||0;
+    const repaid = parseFloat(l.repayment)||0;
+    const left = Math.max(borrowed - repaid,0);
+    const late = 0;
+    lb.innerHTML += `<tr>
+      <td>${l.dateTaken||""}</td>
       <td>${(parseFloat(l.loanRequested)||0).toFixed(2)}</td>
       <td>${borrowed.toFixed(2)}</td>
       <td>${repaid.toFixed(2)}</td>
       <td>${left.toFixed(2)}</td>
       <td>${late.toFixed(2)}</td>
-      <td>${l.status || ""}</td>
-    `;
-    lb.appendChild(tr);
+      <td>${l.status||""}</td>
+    </tr>`;
   });
 }
 
@@ -249,10 +234,7 @@ async function requestWithdrawal(amount) {
     if (!result.success) throw new Error(result.message || "Failed to withdraw");
     alert("Withdrawal successful!");
     await loadData();
-  } catch(err) {
-    console.error(err);
-    alert("Error requesting withdrawal.");
-  }
+  } catch(err) { console.error(err); alert("Error requesting withdrawal."); }
 }
 
 // ---------- Request Loan ----------
@@ -267,10 +249,7 @@ async function requestLoan(amount) {
     if (!result.success) throw new Error(result.message || "Failed to request loan");
     alert("Loan request submitted!");
     await loadData();
-  } catch(err) {
-    console.error(err);
-    alert("Error requesting loan.");
-  }
+  } catch(err) { console.error(err); alert("Error requesting loan."); }
 }
 
 // ---------- Logout ----------
@@ -279,14 +258,13 @@ function logout() {
   window.location.href = "index.html";
 }
 
-// ---------- Expose Functions ----------
 window.logout = logout;
 window.requestWithdrawal = requestWithdrawal;
 window.requestLoan = requestLoan;
 
-// Load data initially
 loadData();
 </script>
+
 
  <footer>
     <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>

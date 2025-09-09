@@ -1,179 +1,169 @@
 // server.js
-const express = require("express");
-const bodyParser = require("body-parser");
-const path = require("path");
-const { MongoClient, ObjectId } = require("mongodb");
+import express from "express";
+import { MongoClient, ObjectId } from "mongodb";
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-const MONGO_URI = process.env.MONGO_URI;
+app.use(express.json());
 
+// -------------------- MongoDB Setup --------------------
+const client = new MongoClient(process.env.MONGO_URI);
 let db;
-let membersCol, weeklyCol, withdrawalsCol, loansCol;
 
-// ---------- Middleware ----------
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
-
-// ---------- Connect to MongoDB ----------
 async function connectDB() {
   try {
-    const client = new MongoClient(MONGO_URI);
     await client.connect();
-    console.log("✅ Connected to MongoDB!");
     db = client.db("familybanking");
-    membersCol = db.collection("members");
-    weeklyCol = db.collection("weekly");
-    withdrawalsCol = db.collection("withdrawals");
-    loansCol = db.collection("loans");
+    console.log("✅ MongoDB connected");
+
+    // Seed initial data
+    await seedDatabase();
   } catch (err) {
     console.error("MongoDB connection error:", err);
-    process.exit(1);
+    process.exit(1); // exit if cannot connect
   }
 }
-connectDB();
 
-// ---------- Login ----------
+// -------------------- Seed Database --------------------
+async function seedDatabase() {
+  const membersCollection = db.collection("members");
+
+  // Admin
+  const adminExists = await membersCollection.findOne({ username: "admin" });
+  if (!adminExists) {
+    await membersCollection.insertOne({
+      username: "Jal",
+      password: "adminfb2025", // Change to strong password
+      role: "admin",
+      name: "Jal",
+      status: "active",
+      startDate: new Date().toISOString().split("T")[0],
+    });
+    console.log("Admin account created!");
+  }
+
+  // Test members
+  const testMembers = [
+    { username: "Tested", password: "@2025", role: "member", name: "Tested", status: "active" },
+    { username: "family", password: "@2025", role: "member", name: "family", status: "active" },
+    { username: "Test", password: "@2025", role: "member", name: "Test", status: "active" },
+  ];
+
+  for (const member of testMembers) {
+    const exists = await membersCollection.findOne({ username: member.username });
+    if (!exists) await membersCollection.insertOne({ ...member, startDate: new Date().toISOString().split("T")[0] });
+  }
+  console.log("Test members seeded!");
+}
+
+// -------------------- Routes --------------------
+
+// Login
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  const user = await membersCol.findOne({ username, password });
-  if (!user) return res.json({ success: false, message: "Invalid username or password." });
-
-  res.json({
-    success: true,
-    role: user.role,
-    name: user.name,
-    username: user.username
-  });
+  try {
+    const member = await db.collection("members").findOne({ username, password });
+    if (!member) return res.json({ success: false, message: "Invalid username or password" });
+    res.json({ success: true, username: member.username, role: member.role, name: member.name });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
-// ---------- Signup ----------
-app.post("/signup", async (req, res) => {
-  const { fullname, email, username, password } = req.body;
-  if (!fullname || !email || !username || !password)
-    return res.json({ success: false, message: "All fields required." });
-
-  const exists = await membersCol.findOne({ username });
-  if (exists) return res.json({ success: false, message: "Username already exists." });
-
-  await membersCol.insertOne({
-    startDate: new Date().toISOString().split("T")[0],
-    name: fullname,
-    email,
-    username,
-    password,
-    role: "member",
-    status: "active"
-  });
-  res.json({ success: true });
-});
-
-// ---------- Admin ----------
-app.get("/api/admin-data", async (req, res) => {
-  const members = await membersCol.find().toArray();
-  const weekly = await weeklyCol.find().toArray();
-  const withdrawals = await withdrawalsCol.find().toArray();
-  const loans = await loansCol.find().toArray();
-  res.json({ members, weekly, withdrawals, loans });
-});
-
-app.post("/api/admin-data", async (req, res) => {
-  const { members, weekly, withdrawals, loans } = req.body;
-
-  // Replace collections with new data
-  await membersCol.deleteMany({});
-  await weeklyCol.deleteMany({});
-  await withdrawalsCol.deleteMany({});
-  await loansCol.deleteMany({});
-
-  if (members && members.length > 0) await membersCol.insertMany(members);
-  if (weekly && weekly.length > 0) await weeklyCol.insertMany(weekly);
-  if (withdrawals && withdrawals.length > 0) await withdrawalsCol.insertMany(withdrawals);
-  if (loans && loans.length > 0) await loansCol.insertMany(loans);
-
-  res.json({ success: true });
-});
-
-// ---------- Change password ----------
-app.post("/api/change-password", async (req, res) => {
-  const { username, oldPassword, newPassword } = req.body;
-  if (!username || !oldPassword || !newPassword)
-    return res.json({ success: false, message: "Missing fields." });
-
-  const user = await membersCol.findOne({ username, password: oldPassword });
-  if (!user) return res.json({ success: false, message: "Old password is incorrect." });
-
-  await membersCol.updateOne({ username }, { $set: { password: newPassword } });
-  res.json({ success: true, message: "Password updated successfully." });
-});
-
-// ---------- Member ----------
+// Get member data
 app.get("/api/member-data/:username", async (req, res) => {
   const { username } = req.params;
-  const user = await membersCol.findOne({ username });
-  if (!user) return res.json({ success: false, message: "Member not found." });
-
-  const weekly = await weeklyCol.find({ member: username }).toArray();
-  const withdrawals = await withdrawalsCol.find({ member: username }).toArray();
-  const loans = await loansCol.find({ member: username }).toArray();
-
-  // Calculate balance
-  const depositsTotal = weekly.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
-  const withdrawalsTotal = withdrawals.reduce((sum, w) => sum + parseFloat(w.withdrawn || 0), 0);
-  const loansTotal = loans.reduce((sum, l) => sum + parseFloat(l.borrowed || 0), 0);
-  const balance = depositsTotal - withdrawalsTotal - loansTotal;
-
-  res.json({
-    success: true,
-    user,
-    weekly,
-    withdrawals,
-    loans,
-    depositsTotal,
-    withdrawalsTotal,
-    loansTotal,
-    balance
-  });
+  try {
+    const weekly = await db.collection("weekly").find({ member: username }).toArray();
+    const withdrawals = await db.collection("withdrawals").find({ member: username }).toArray();
+    const loans = await db.collection("loans").find({ member: username }).toArray();
+    res.json({ success: true, weekly, withdrawals, loans });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error fetching member data" });
+  }
 });
 
-// ---------- Withdraw ----------
+// Get admin data
+app.get("/api/admin-data", async (req, res) => {
+  try {
+    const members = await db.collection("members").find({}).toArray();
+    const weekly = await db.collection("weekly").find({}).toArray();
+    const withdrawals = await db.collection("withdrawals").find({}).toArray();
+    const loans = await db.collection("loans").find({}).toArray();
+    res.json({ members, weekly, withdrawals, loans });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error fetching admin data" });
+  }
+});
+
+// Admin update/save endpoints
+app.post("/api/admin-data/:collection", async (req, res) => {
+  const { collection } = req.params;
+  const { item, deleteFlag } = req.body;
+
+  try {
+    const coll = db.collection(collection);
+
+    if (deleteFlag) {
+      await coll.deleteOne({ _id: ObjectId(item._id) });
+      return res.json({ success: true });
+    }
+
+    if (item._id) {
+      const id = ObjectId(item._id);
+      delete item._id; // remove _id before update
+      await coll.updateOne({ _id: id }, { $set: item });
+    } else {
+      await coll.insertOne(item);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error saving data" });
+  }
+});
+
+// Member request withdrawal
 app.post("/member/withdraw", async (req, res) => {
   const { username, amount, date } = req.body;
-  const user = await membersCol.findOne({ username });
-  if (!user) return res.json({ success: false, message: "User not found." });
-
-  await withdrawalsCol.insertOne({
-    member: username,
-    withdrawn: parseFloat(amount),
-    date: date || new Date().toISOString().split("T")[0]
-  });
-  res.json({ success: true });
+  try {
+    await db.collection("withdrawals").insertOne({ member: username, withdrawn: parseFloat(amount), date });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error requesting withdrawal" });
+  }
 });
 
-// ---------- Request loan ----------
+// Member request loan
 app.post("/member/request-loan", async (req, res) => {
   const { username, amount, date } = req.body;
-  const user = await membersCol.findOne({ username });
-  if (!user) return res.json({ success: false, message: "User not found." });
-
-  await loansCol.insertOne({
-    member: username,
-    loanRequested: parseFloat(amount),
-    borrowed: 0,
-    repayment: 0,
-    dateTaken: date || new Date().toISOString().split("T")[0],
-    status: "ongoing"
-  });
-  res.json({ success: true });
+  try {
+    await db.collection("loans").insertOne({
+      member: username,
+      loanRequested: parseFloat(amount),
+      borrowed: 0,
+      repayment: 0,
+      dateTaken: date,
+      dueDate: "",
+      finishDate: "",
+      status: "ongoing",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error requesting loan" });
+  }
 });
 
-// ---------- Serve HTML Pages ----------
-const pages = ["index","signup","login","admin","member","about","contact","FAQ","home"];
-pages.forEach(p => {
-  app.get(p === "index" ? "/" : `/${p}.html`, (req, res) => {
-    res.sendFile(path.join(__dirname, "public", `${p}.html`));
-  });
+// -------------------- Start Server --------------------
+const PORT = process.env.PORT || 10000;
+connectDB().then(() => {
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
 });
 
-// ---------- Start server ----------
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

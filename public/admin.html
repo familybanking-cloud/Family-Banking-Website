@@ -162,48 +162,17 @@ window.onload = async function() {
 };
 
 // ---------- Data ----------
-let data = { members: [], weekly: [], withdrawals: [], loans: [] };
+let data = { members: [], weekly: [], withdrawals: [], loans: [], balances: {} };
 
 // ---------- Load ----------
 async function loadData() {
   try {
     const res = await fetch('/api/admin-data');
-    const result = await res.json();
-    data = {
-      members: result.members || [],
-      weekly: result.weekly || [],
-      withdrawals: result.withdrawals || [],
-      loans: result.loans || []
-    };
+    data = await res.json();
     renderAll();
   } catch (err) {
     console.error("Error loading data:", err);
-    alert("Failed to load admin data.");
   }
-}
-
-// ---------- Calculate Balances ----------
-function getMemberBalances() {
-  const balances = {};
-  data.members.forEach(m => balances[m.username] = 0);
-
-  data.weekly.forEach(w => {
-    const amount = parseFloat(w.amount) || 0;
-    balances[w.member] = (balances[w.member] || 0) + amount;
-  });
-
-  data.withdrawals.forEach(w => {
-    const withdrawn = parseFloat(w.withdrawn) || 0;
-    balances[w.member] = (balances[w.member] || 0) - withdrawn;
-  });
-
-  data.loans.forEach(l => {
-    const borrowed = parseFloat(l.borrowed) || 0;
-    const repayment = parseFloat(l.repayment) || 0;
-    balances[l.member] = (balances[l.member] || 0) - borrowed + repayment;
-  });
-
-  return balances;
 }
 
 // ---------- Render Functions ----------
@@ -211,14 +180,16 @@ function renderMembers() {
   const tbody = document.querySelector("#membersTable tbody");
   tbody.innerHTML = "";
   data.members.forEach(m => {
+    const balance = data.balances[m.username] || 0;
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="date" value="${m.startDate || ''}" onchange="updateMember('${m._id}', 'startDate', this.value)"></td>
-      <td><input type="text" value="${m.name || ''}" onchange="updateMember('${m._id}', 'name', this.value)"></td>
+      <td><input type="date" value="${m.startDate||''}" onchange="updateMember('${m._id}', 'startDate', this.value)"></td>
+      <td><input type="text" value="${m.name||''}" onchange="updateMember('${m._id}', 'name', this.value)"></td>
+      <td>${balance.toFixed(2)}</td>
       <td>
         <select onchange="updateMember('${m._id}', 'status', this.value)">
-          <option value="active" ${m.status === "active" ? "selected" : ""}>Active</option>
-          <option value="inactive" ${m.status === "inactive" ? "selected" : ""}>Inactive</option>
+          <option value="active" ${m.status==="active"?"selected":""}>Active</option>
+          <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
         </select>
       </td>
       <td><button onclick="deleteRow('members','${m._id}')">Delete</button></td>
@@ -230,16 +201,14 @@ function renderMembers() {
 function renderWeekly() {
   const tbody = document.querySelector("#weeklyTable tbody");
   tbody.innerHTML = "";
-  const balances = getMemberBalances();
-
   data.weekly.forEach(w => {
-    const current = balances[w.member] || 0;
+    const balance = data.balances[w.member] || 0;
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="text" value="${w.member || ''}" placeholder="username" onchange="updateWeekly('${w._id}', 'member', this.value)"></td>
-      <td><input type="date" value="${w.date || ''}" onchange="updateWeekly('${w._id}', 'date', this.value)"></td>
-      <td><input type="number" value="${w.amount || 0}" onchange="updateWeekly('${w._id}', 'amount', this.value)"></td>
-      <td>${current.toFixed(2)}</td>
+      <td><input type="text" value="${w.member||''}" onchange="updateWeekly('${w._id}', 'member', this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="updateWeekly('${w._id}', 'date', this.value)"></td>
+      <td><input type="number" value="${w.amount||0}" onchange="updateWeekly('${w._id}', 'amount', this.value)"></td>
+      <td>${balance.toFixed(2)}</td>
       <td><button onclick="deleteRow('weekly','${w._id}')">Delete</button></td>
     `;
     tbody.appendChild(row);
@@ -249,17 +218,15 @@ function renderWeekly() {
 function renderWithdrawals() {
   const tbody = document.querySelector("#withdrawalTable tbody");
   tbody.innerHTML = "";
-  const balances = getMemberBalances();
-
   data.withdrawals.forEach(w => {
-    const current = balances[w.member] || 0;
-    const after = current - (parseFloat(w.withdrawn) || 0);
+    const balance = data.balances[w.member] || 0;
+    const after = balance - (parseFloat(w.withdrawn)||0);
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="text" value="${w.member || ''}" placeholder="username" onchange="updateWithdrawal('${w._id}', 'member', this.value)"></td>
-      <td>${current.toFixed(2)}</td>
-      <td><input type="number" value="${w.withdrawn || 0}" onchange="updateWithdrawal('${w._id}', 'withdrawn', this.value)"></td>
-      <td><input type="date" value="${w.date || ''}" onchange="updateWithdrawal('${w._id}', 'date', this.value)"></td>
+      <td><input type="text" value="${w.member||''}" onchange="updateWithdrawal('${w._id}', 'member', this.value)"></td>
+      <td>${balance.toFixed(2)}</td>
+      <td><input type="number" value="${w.withdrawn||0}" onchange="updateWithdrawal('${w._id}', 'withdrawn', this.value)"></td>
+      <td><input type="date" value="${w.date||''}" onchange="updateWithdrawal('${w._id}', 'date', this.value)"></td>
       <td>${after.toFixed(2)}</td>
       <td><button onclick="deleteRow('withdrawals','${w._id}')">Delete</button></td>
     `;
@@ -270,13 +237,11 @@ function renderWithdrawals() {
 function renderLoans() {
   const tbody = document.querySelector("#loanTable tbody");
   tbody.innerHTML = "";
-
   data.loans.forEach(l => {
     const borrowed = parseFloat(l.borrowed || 0);
     const repaid = parseFloat(l.repayment || 0);
     let loanLeft = Math.max(borrowed - repaid, 0);
     let lateFee = 0;
-
     const today = new Date();
     const finish = l.finishDate ? new Date(l.finishDate) : null;
     if (finish && today > finish && l.status === "ongoing") {
@@ -286,19 +251,19 @@ function renderLoans() {
 
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="date" value="${l.dateTaken || ''}" onchange="updateLoan('${l._id}', 'dateTaken', this.value)"></td>
-      <td><input type="text" value="${l.member || ''}" placeholder="username" onchange="updateLoan('${l._id}', 'member', this.value)"></td>
-      <td><input type="number" value="${l.loanRequested || 0}" onchange="updateLoan('${l._id}', 'loanRequested', this.value)"></td>
+      <td><input type="date" value="${l.dateTaken||''}" onchange="updateLoan('${l._id}', 'dateTaken', this.value)"></td>
+      <td><input type="text" value="${l.member||''}" onchange="updateLoan('${l._id}', 'member', this.value)"></td>
+      <td><input type="number" value="${l.loanRequested||0}" onchange="updateLoan('${l._id}', 'loanRequested', this.value)"></td>
       <td><input type="number" value="${borrowed}"></td>
       <td><input type="number" value="${repaid}" onchange="updateLoan('${l._id}', 'repayment', this.value)"></td>
-      <td><input type="date" value="${l.dueDate || ''}" onchange="updateLoan('${l._id}', 'dueDate', this.value)"></td>
-      <td><input type="date" value="${l.finishDate || ''}" onchange="updateLoan('${l._id}', 'finishDate', this.value)"></td>
+      <td><input type="date" value="${l.dueDate||''}" onchange="updateLoan('${l._id}', 'dueDate', this.value)"></td>
+      <td><input type="date" value="${l.finishDate||''}" onchange="updateLoan('${l._id}', 'finishDate', this.value)"></td>
       <td>${loanLeft.toFixed(2)}</td>
       <td>${lateFee.toFixed(2)}</td>
       <td>
         <select onchange="updateLoan('${l._id}', 'status', this.value)">
-          <option value="ongoing" ${l.status === "ongoing" ? "selected" : ""}>Ongoing</option>
-          <option value="paid" ${l.status === "paid" ? "selected" : ""}>Paid</option>
+          <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
+          <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
         </select>
       </td>
       <td><button onclick="deleteRow('loans','${l._id}')">Delete</button></td>
@@ -308,23 +273,23 @@ function renderLoans() {
 }
 
 // ---------- Add/Delete ----------
-function addMemberRow() { data.members.push({ startDate:"", name:"", status:"active" }); renderMembers(); }
-function addWeeklyRow() { data.weekly.push({ member:"", date:"", amount:0 }); renderWeekly(); }
-function addWithdrawalRow() { data.withdrawals.push({ member:"", withdrawn:0, date:"" }); renderWithdrawals(); }
-function addLoanRow() { data.loans.push({ dateTaken:"", member:"", loanRequested:0, borrowed:0, repayment:0, dueDate:"", finishDate:"", status:"ongoing" }); renderLoans(); }
+function addMemberRow() { data.members.push({ startDate:"", name:"", status:"active" }); renderAll(); }
+function addWeeklyRow() { data.weekly.push({ member:"", date:"", amount:0 }); renderAll(); }
+function addWithdrawalRow() { data.withdrawals.push({ member:"", withdrawn:0, date:"" }); renderAll(); }
+function addLoanRow() { data.loans.push({ dateTaken:"", member:"", loanRequested:0, borrowed:0, repayment:0, dueDate:"", finishDate:"", status:"ongoing" }); renderAll(); }
 
 async function deleteRow(collection, id) {
   const item = data[collection].find(x => x._id === id);
   data[collection] = data[collection].filter(x => x._id !== id);
   await saveToBackend(collection, item, true);
-  renderAll();
+  await loadData();
 }
 
 // ---------- Update ----------
-function updateMember(id,key,value) { const m = data.members.find(x => x._id===id); if(m){ m[key]=value; saveToBackend('members', m); renderAll(); } }
-function updateWeekly(id,key,value) { const w = data.weekly.find(x => x._id===id); if(w){ w[key]=key==='amount'?parseFloat(value):value; saveToBackend('weekly', w); renderAll(); } }
-function updateWithdrawal(id,key,value) { const w = data.withdrawals.find(x => x._id===id); if(w){ w[key]=key==='withdrawn'?parseFloat(value):value; saveToBackend('withdrawals', w); renderAll(); } }
-function updateLoan(id,key,value) { const l = data.loans.find(x => x._id===id); if(l){ l[key]=['loanRequested','borrowed','repayment'].includes(key)?parseFloat(value):value; saveToBackend('loans', l); renderAll(); } }
+function updateMember(id,key,value) { const m = data.members.find(x=>x._id===id); if(m){ m[key]=value; saveToBackend('members', m); } }
+function updateWeekly(id,key,value) { const w = data.weekly.find(x=>x._id===id); if(w){ w[key]=key==='amount'?parseFloat(value):value; saveToBackend('weekly', w); } }
+function updateWithdrawal(id,key,value) { const w = data.withdrawals.find(x=>x._id===id); if(w){ w[key]=key==='withdrawn'?parseFloat(value):value; saveToBackend('withdrawals', w); } }
+function updateLoan(id,key,value) { const l = data.loans.find(x=>x._id===id); if(l){ l[key]=['loanRequested','borrowed','repayment'].includes(key)?parseFloat(value):value; saveToBackend('loans', l); } }
 
 // ---------- Save to Backend ----------
 async function saveToBackend(collection, item=null, deleteFlag=false) {
@@ -338,7 +303,12 @@ async function saveToBackend(collection, item=null, deleteFlag=false) {
 }
 
 // ---------- Render All ----------
-function renderAll() { renderMembers(); renderWeekly(); renderWithdrawals(); renderLoans(); }
+function renderAll() {
+  renderMembers();
+  renderWeekly();
+  renderWithdrawals();
+  renderLoans();
+}
 
 // ---------- Navigation ----------
 function goToMemberPage() { window.location.href = "member.html"; }
@@ -354,9 +324,6 @@ window.goToMemberPage = goToMemberPage;
 window.logout = logout;
 
 </script>
-
-
-
 
  <footer>
     <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>

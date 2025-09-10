@@ -1,168 +1,170 @@
-import express from "express";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
-import { MongoClient, ObjectId } from "mongodb";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+const express = require("express");
+const bodyParser = require("body-parser");
+const path = require("path");
+const { MongoClient, ObjectId } = require("mongodb");
 
-dotenv.config();
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 10000; // For Render
+const MONGO_URI = process.env.MONGO_URI || "your_mongodb_connection_string"; // Set in Render env vars
+const DB_NAME = "familyBank";
 
-// For __dirname in ES module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Serve static files from 'public' folder
-app.use(express.static(path.join(__dirname, "public")));
-
-const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017";
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
-
-let db;
+// ---------- Middleware ----------
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
 
 // ---------- MongoDB Connection ----------
-async function connectDB() {
-  const client = new MongoClient(MONGO_URI);
-  await client.connect();
-  db = client.db("familyBanking");
-  console.log("Connected to MongoDB");
-}
-connectDB().catch(console.error);
+let db, membersCol, weeklyCol, withdrawalsCol, loansCol;
 
-// ---------- JWT Middleware ----------
-function verifyToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader)
-    return res.status(401).json({ success: false, message: "No token provided" });
-
-  const token = authHeader.split(" ")[1];
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(403).json({ success: false, message: "Invalid token" });
-    req.user = decoded;
-    next();
-  });
-}
+MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
+  .then(client => {
+    db = client.db(DB_NAME);
+    membersCol = db.collection("members");
+    weeklyCol = db.collection("weekly");
+    withdrawalsCol = db.collection("withdrawals");
+    loansCol = db.collection("loans");
+    console.log("✅ Connected to MongoDB");
+  })
+  .catch(err => console.error("❌ MongoDB connection error:", err));
 
 // ---------- Login ----------
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password)
-    return res.status(400).json({ success: false, message: "Missing credentials" });
+  const user = await membersCol.findOne({ username, password });
+  if (!user) return res.json({ success: false, message: "Invalid username or password." });
 
-  try {
-    const user = await db.collection("members").findOne({ username });
-    if (!user) return res.status(401).json({ success: false, message: "Invalid username/password" });
+  res.json({
+    success: true,
+    role: user.role,
+    name: user.name,
+    username: user.username
+  });
+});
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ success: false, message: "Invalid username/password" });
+// ---------- Signup ----------
+app.post("/signup", async (req, res) => {
+  const { fullname, email, username, password } = req.body;
+  if (!fullname || !email || !username || !password)
+    return res.json({ success: false, message: "All fields required." });
 
-    const token = jwt.sign({ username: user.username, role: user.role }, JWT_SECRET, { expiresIn: "12h" });
+  const exists = await membersCol.findOne({ username });
+  if (exists) return res.json({ success: false, message: "Username already exists." });
 
-    res.json({ success: true, username: user.username, role: user.role, token });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Login failed" });
+  const newUser = {
+    startDate: new Date().toISOString().split("T")[0],
+    name: fullname,
+    email,
+    username,
+    password,
+    role: "member",
+    status: "active"
+  };
+
+  await membersCol.insertOne(newUser);
+  res.json({ success: true });
+});
+
+// ---------- Admin ----------
+app.get("/api/admin-data", async (req, res) => {
+  const members = await membersCol.find().toArray();
+  const weekly = await weeklyCol.find().toArray();
+  const withdrawals = await withdrawalsCol.find().toArray();
+  const loans = await loansCol.find().toArray();
+  res.json({ members, weekly, withdrawals, loans });
+});
+
+app.post("/api/admin-data", async (req, res) => {
+  // Overwrites collections (use carefully)
+  const { members, weekly, withdrawals, loans } = req.body;
+  if (members && membersCol) {
+    await membersCol.deleteMany({});
+    if (members.length) await membersCol.insertMany(members);
   }
-});
-
-// ---------- Member Routes ----------
-app.get("/api/member-data", verifyToken, async (req, res) => {
-  if (req.user.role !== "member")
-    return res.status(403).json({ success: false, message: "Members only" });
-
-  try {
-    const username = req.user.username;
-    const member = await db.collection("members").findOne({ username });
-    if (!member) return res.status(404).json({ success: false, message: "Member not found" });
-
-    const weekly = await db.collection("weekly").find({ username }).toArray();
-    const withdrawals = await db.collection("withdrawals").find({ username }).toArray();
-    const loans = await db.collection("loans").find({ username }).toArray();
-
-    let balance = 0;
-    weekly.forEach(w => balance += parseFloat(w.amount || 0));
-    withdrawals.forEach(w => balance -= parseFloat(w.amount || 0));
-    loans.forEach(l => {
-      const borrowed = parseFloat(l.borrowed || 0);
-      const repaid = parseFloat(l.repayment || 0);
-      balance -= borrowed;
-      balance += repaid;
-    });
-
-    res.json({ success: true, member: { ...member, balance }, weekly, withdrawals, loans });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Error fetching member data" });
+  if (weekly && weeklyCol) {
+    await weeklyCol.deleteMany({});
+    if (weekly.length) await weeklyCol.insertMany(weekly);
   }
-});
-
-// ---------- Admin Routes ----------
-function validCollection(col) {
-  return ["members", "weekly", "withdrawals", "loans"].includes(col);
-}
-
-app.get("/api/admin-data", verifyToken, async (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ success: false, message: "Admins only" });
-
-  try {
-    const members = await db.collection("members").find({}).toArray();
-    const weekly = await db.collection("weekly").find({}).toArray();
-    const withdrawals = await db.collection("withdrawals").find({}).toArray();
-    const loans = await db.collection("loans").find({}).toArray();
-    res.json({ success: true, members, weekly, withdrawals, loans });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Error fetching admin data" });
+  if (withdrawals && withdrawalsCol) {
+    await withdrawalsCol.deleteMany({});
+    if (withdrawals.length) await withdrawalsCol.insertMany(withdrawals);
   }
-});
-
-app.post("/api/admin-data/:collection", verifyToken, async (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ success: false, message: "Admins only" });
-
-  const { collection } = req.params;
-  const { item, deleteFlag } = req.body;
-
-  if (!validCollection(collection))
-    return res.status(400).json({ success: false, message: "Invalid collection" });
-
-  try {
-    const coll = db.collection(collection);
-    if (deleteFlag) {
-      if (!item || !item._id) return res.status(400).json({ success: false, message: "Missing _id" });
-      await coll.deleteOne({ _id: ObjectId(item._id) });
-      return res.json({ success: true });
-    }
-
-    if (item && item._id) {
-      const id = ObjectId(item._id);
-      delete item._id;
-      await coll.updateOne({ _id: id }, { $set: item });
-      return res.json({ success: true });
-    }
-
-    if (item) {
-      await coll.insertOne(item);
-      return res.json({ success: true, item });
-    }
-
-    res.status(400).json({ success: false, message: "Missing item" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Error saving data" });
+  if (loans && loansCol) {
+    await loansCol.deleteMany({});
+    if (loans.length) await loansCol.insertMany(loans);
   }
+  res.json({ success: true });
 });
 
-// ---------- Serve index.html for root ----------
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// Change password
+app.post("/api/change-password", async (req, res) => {
+  const { username, oldPassword, newPassword } = req.body;
+  if (!username || !oldPassword || !newPassword)
+    return res.json({ success: false, message: "Missing fields." });
+
+  const user = await membersCol.findOne({ username, password: oldPassword });
+  if (!user) return res.json({ success: false, message: "Old password is incorrect" });
+
+  await membersCol.updateOne({ username }, { $set: { password: newPassword } });
+  res.json({ success: true, message: "Password updated successfully" });
 });
 
-// ---------- Server ----------
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// ---------- Member ----------
+app.get("/api/member-data/:username", async (req, res) => {
+  const { username } = req.params;
+  const user = await membersCol.findOne({ username });
+  if (!user) return res.json({ success: false, message: "Member not found" });
+
+  const weekly = await weeklyCol.find({ member: username }).toArray();
+  const withdrawals = await withdrawalsCol.find({ member: username }).toArray();
+  const loans = await loansCol.find({ member: username }).toArray();
+
+  const depositsTotal = weekly.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
+  const withdrawalsTotal = withdrawals.reduce((sum, w) => sum + parseFloat(w.withdrawn || 0), 0);
+  const loansTotal = loans.reduce((sum, l) => sum + parseFloat(l.borrowed || 0), 0);
+  const balance = depositsTotal - withdrawalsTotal - loansTotal;
+
+  res.json({ success: true, user, weekly, withdrawals, loans, depositsTotal, withdrawalsTotal, loansTotal, balance });
 });
+
+// Withdraw
+app.post("/member/withdraw", async (req, res) => {
+  const { username, amount, date } = req.body;
+  const user = await membersCol.findOne({ username });
+  if (!user) return res.json({ success: false, message: "User not found." });
+
+  await withdrawalsCol.insertOne({
+    member: username,
+    withdrawn: parseFloat(amount),
+    date: date || new Date().toISOString().split("T")[0]
+  });
+
+  res.json({ success: true });
+});
+
+// Request loan
+app.post("/member/request-loan", async (req, res) => {
+  const { username, amount, date } = req.body;
+  const user = await membersCol.findOne({ username });
+  if (!user) return res.json({ success: false, message: "User not found." });
+
+  await loansCol.insertOne({
+    member: username,
+    loanRequested: parseFloat(amount),
+    borrowed: 0,
+    repayment: 0,
+    dateTaken: date || new Date().toISOString().split("T")[0],
+    status: "ongoing"
+  });
+
+  res.json({ success: true });
+});
+
+// ---------- Serve HTML Pages ----------
+const pages = ["index","signup","login","admin","member","about","contact","FAQ","home"];
+pages.forEach(p => {
+  app.get(p === "index" ? "/" : `/${p}.html`, (req, res) => {
+    res.sendFile(path.join(__dirname, "public", `${p}.html`));
+  });
+});
+
+// ---------- Start server ----------
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

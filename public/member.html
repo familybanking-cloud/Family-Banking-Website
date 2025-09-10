@@ -82,72 +82,104 @@
 </div>
 
 <script>
-// member.js
-import express from "express";
-import jwt from "jsonwebtoken";
+const role = localStorage.getItem("role");
+const username = localStorage.getItem("loggedInUser");
+const displayName = localStorage.getItem("displayName") || username;
 
-const app = express();
-app.use(express.json());
+if (!username || role !== "member") {
+  alert("Please log in as a member.");
+  window.location.href = "index.html";
+}
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_here";
+document.getElementById("memberName").innerText = displayName;
 
-// ---------- JWT Verification ----------
-function verifyToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader)
-    return res.status(401).json({ success: false, message: "No token provided" });
+let dataset = { weekly: [], withdrawals: [], loans: [] };
 
-  const token = authHeader.split(" ")[1];
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(403).json({ success: false, message: "Invalid token" });
-    req.user = decoded;
-    next();
+// ---------- Load Data ----------
+async function loadData() {
+  try {
+    const res = await fetch(`/api/member-data/${encodeURIComponent(username)}`);
+    const result = await res.json();
+    if (!result.success) throw new Error(result.message || "Could not load data");
+
+    // Ensure numeric fields are parsed
+    dataset.weekly = (result.weekly || []).map(w => ({ ...w, amount: parseFloat(w.amount) || 0 }));
+    dataset.withdrawals = (result.withdrawals || []).map(w => ({ ...w, withdrawn: parseFloat(w.withdrawn) || 0 }));
+    dataset.loans = (result.loans || []).map(l => ({
+      ...l,
+      loanRequested: parseFloat(l.loanRequested) || 0,
+      borrowed: parseFloat(l.borrowed) || 0,
+      repayment: parseFloat(l.repayment) || 0
+    }));
+
+    render();
+  } catch (err) {
+    console.error(err);
+    alert("Error fetching member data.");
+  }
+}
+
+// ---------- Calculate Balance ----------
+function calculateBalance() {
+  let total = 0;
+  dataset.weekly.forEach(w => total += w.amount);
+  dataset.withdrawals.forEach(w => total -= w.withdrawn);
+  dataset.loans.forEach(l => {
+    total -= l.borrowed;
+    total += l.repayment;
+  });
+  return total;
+}
+
+// ---------- Render ----------
+function render() {
+  document.getElementById("currentBalance").innerText = calculateBalance().toFixed(2);
+
+  const wb = document.querySelector("#weeklyTable tbody");
+  wb.innerHTML = "";
+  dataset.weekly.forEach(w => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${w.date || ""}</td><td>${w.amount.toFixed(2)}</td>`;
+    wb.appendChild(tr);
+  });
+
+  const wd = document.querySelector("#withdrawalTable tbody");
+  wd.innerHTML = "";
+  dataset.withdrawals.forEach(w => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${w.date || ""}</td><td>${w.withdrawn.toFixed(2)}</td>`;
+    wd.appendChild(tr);
+  });
+
+  const lb = document.querySelector("#loanTable tbody");
+  lb.innerHTML = "";
+  dataset.loans.forEach(l => {
+    const left = Math.max(l.borrowed - l.repayment, 0);
+    const late = 0; // Can calculate if needed
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${l.dateTaken || ""}</td>
+      <td>${l.loanRequested.toFixed(2)}</td>
+      <td>${l.borrowed.toFixed(2)}</td>
+      <td>${l.repayment.toFixed(2)}</td>
+      <td>${left.toFixed(2)}</td>
+      <td>${late.toFixed(2)}</td>
+      <td>${l.status || ""}</td>
+    `;
+    lb.appendChild(tr);
   });
 }
 
-// ---------- Member Data ----------
-app.get("/api/member-data", verifyToken, async (req, res) => {
-  if (req.user.role !== "member")
-    return res.status(403).json({ success: false, message: "Members only" });
+// ---------- Logout ----------
+function logout() {
+  localStorage.clear();
+  window.location.href = "index.html";
+}
 
-  try {
-    const username = req.user.username;
+window.logout = logout;
 
-    // Fetch member info
-    const member = await db.collection("members").findOne({ username });
-    if (!member) return res.status(404).json({ success: false, message: "Member not found" });
-
-    // Fetch transactions
-    const weekly = await db.collection("weekly").find({ username }).toArray();
-    const withdrawals = await db.collection("withdrawals").find({ username }).toArray();
-    const loans = await db.collection("loans").find({ username }).toArray();
-
-    // Compute balance
-    let balance = 0;
-    weekly.forEach(w => balance += parseFloat(w.amount || 0));
-    withdrawals.forEach(w => balance -= parseFloat(w.amount || 0));
-
-    loans.forEach(l => {
-      const borrowed = parseFloat(l.borrowed || 0);
-      const repaid = parseFloat(l.repayment || 0);
-      balance -= borrowed;
-      balance += repaid;
-    });
-
-    res.json({
-      success: true,
-      member: { ...member, balance },
-      weekly,
-      withdrawals,
-      loans
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Error fetching member data" });
-  }
-});
-
-export default app;
+// Load data on page load
+loadData();
 </script>
 
 <footer>

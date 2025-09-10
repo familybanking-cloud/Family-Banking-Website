@@ -112,53 +112,44 @@
 </footer>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const showPass = document.getElementById("showSignupPassword");
-  const pass = document.getElementById("signupPassword");
-  const confirmPass = document.getElementById("signupConfirmPassword");
-  const msg = document.getElementById("message");
+document.addEventListener("DOMContentLoaded", () => {
+  const signupForm = document.getElementById("signupForm");
 
-  // Toggle password visibility
-  showPass.addEventListener("change", () => {
-    pass.type = confirmPass.type = showPass.checked ? "text" : "password";
-  });
+  if (!signupForm) return;
 
-  // Signup
-  document.getElementById("signupBtn").addEventListener("click", async () => {
-    const fullname = document.getElementById("signupName").value.trim();
-    const email = document.getElementById("signupEmail").value.trim();
-    const username = document.getElementById("signupUsername").value.trim();
-    const password = pass.value;
-    const confirmPassword = confirmPass.value;
+  signupForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-    msg.textContent = "";
+    // Get form values
+    const fullname = document.getElementById("fullname").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
 
-    if (!fullname || !email || !username || !password || !confirmPassword) {
-      msg.textContent = "Please fill all fields";
-      return;
-    }
-    if (password !== confirmPassword) {
-      msg.textContent = "Passwords do not match";
+    // Basic validation
+    if (!fullname || !email || !username || !password) {
+      alert("All fields are required.");
       return;
     }
 
     try {
-      const res = await fetch("public/signup", {
+      const res = await fetch("/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fullname, email, username, password })
       });
 
-      const data = await res.json();
-      if (data.success) {
+      const result = await res.json();
+
+      if (result.success) {
         alert("Signup successful! Please log in.");
-        window.location.href = "index.html";
+        window.location.href = "index.html"; // Redirect to login page
       } else {
-        msg.textContent = data.message || "Signup failed.";
+        alert(result.message || "Signup failed. Please try again.");
       }
     } catch (err) {
       console.error("Signup error:", err);
-      msg.textContent = "Server error. Please try again later.";
+      alert("An error occurred. Please try again later.");
     }
   });
 });

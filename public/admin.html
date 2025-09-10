@@ -79,346 +79,221 @@ footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; mar
 </section>
 
 <script>
-/*
-  Admin script (JWT auth + calculations + CRUD)
-  Paste into admin.html (replace existing admin script).
-*/
+window.onload = async function() {
+  const role = localStorage.getItem("role");
+  if (role !== "admin") {
+    alert("Access denied. Admins only.");
+    window.location.href = "index.html";
+    return;
+  }
+  await loadData();
+};
 
-// ---- config ----
-const token = localStorage.getItem("token"); // JWT from login
-if (!token) {
-  alert("Not logged in. Please log in as admin.");
-  window.location.href = "index.html";
-}
+// ---------- Data ----------
+let data = { members: [], weekly: [], withdrawals: [], loans: [] };
 
-// helper - fetch with Authorization header
-async function fetchWithAuth(url, opts = {}) {
-  const merged = {
-    ...opts,
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + token,
-      ...(opts.headers || {})
-    }
-  };
-  const res = await fetch(url, merged);
-  // try parse json (catch network / server errors)
-  try { return await res.json(); } catch (e) { throw new Error("Invalid JSON from server"); }
-}
-
-// local state
-let state = { members: [], weekly: [], withdrawals: [], loans: [] };
-
-// ---------- load data ----------
+// ---------- Load ----------
 async function loadData() {
   try {
-    const data = await fetchWithAuth("/api/admin-data");
-    if (!data || !Array.isArray(data.members)) throw new Error(data.message || "Bad admin-data response");
-
-    state.members = data.members || [];
-    state.weekly = data.weekly || [];
-    state.withdrawals = data.withdrawals || [];
-    state.loans = data.loans || [];
-
-    computeAndRenderAll();
-  } catch (err) {
-    console.error("Error loading admin-data:", err);
-    alert("Error loading admin data. Check console and server logs.");
-  }
+    const res = await fetch('/api/admin-data');
+    const responseData = await res.json();
+    // Assign MongoDB data to our global object
+    data.members = responseData.members || [];
+    data.weekly = responseData.weekly || [];
+    data.withdrawals = responseData.withdrawals || [];
+    data.loans = responseData.loans || [];
+    renderAll();
+  } catch (err) { console.error("Error loading data:", err); }
 }
 
-// ---------- calculations ----------
-function computePerMemberBalances() {
-  // start with known members (use username as key)
+// ---------- Balances ----------
+function getMemberBalances() {
   const balances = {};
-  state.members.forEach(m => {
-    // member might have username or name field; require the admin to use username for contributions
-    const uname = m.username || m.name || "";
-    if (uname) balances[uname] = 0;
+  data.members.forEach(m => balances[m.username || m.name] = 0);
+
+  data.weekly.forEach(w => {
+    if (!balances[w.member]) balances[w.member] = 0;
+    balances[w.member] += parseFloat(w.amount) || 0;
   });
 
-  // contributions add
-  state.weekly.forEach(w => {
-    const m = w.member;
-    if (!m) return;
-    balances[m] = (balances[m] || 0) + (Number(w.amount) || 0);
+  data.withdrawals.forEach(w => {
+    if (!balances[w.member]) balances[w.member] = 0;
+    balances[w.member] -= parseFloat(w.withdrawn) || 0;
   });
 
-  // withdrawals subtract
-  state.withdrawals.forEach(w => {
-    const m = w.member;
-    if (!m) return;
-    // note: field name used when saving should be 'withdrawn' (see server)
-    const val = Number(w.withdrawn || w.amount || 0);
-    balances[m] = (balances[m] || 0) - val;
-  });
-
-  // loans: borrowed subtract, repayment add
-  state.loans.forEach(l => {
-    const m = l.member;
-    if (!m) return;
-    const borrowed = Number(l.borrowed || 0);
-    const repayment = Number(l.repayment || 0);
-    balances[m] = (balances[m] || 0) - borrowed + repayment;
+  data.loans.forEach(l => {
+    if (!balances[l.member]) balances[l.member] = 0;
+    const borrowed = parseFloat(l.borrowed || 0);
+    const repaid = parseFloat(l.repayment || 0);
+    balances[l.member] -= borrowed;
+    balances[l.member] += repaid;
   });
 
   return balances;
 }
 
-function computeTotals(perMemberBalances) {
-  const totals = {
-    totalMembers: state.members.length,
-    totalWeekly: state.weekly.reduce((s, w) => s + (Number(w.amount) || 0), 0),
-    totalWithdrawals: state.withdrawals.reduce((s, w) => s + (Number(w.withdrawn || w.amount) || 0), 0),
-    totalLoansBorrowed: state.loans.reduce((s, l) => s + (Number(l.borrowed) || 0), 0),
-    totalLoansRepaid: state.loans.reduce((s, l) => s + (Number(l.repayment) || 0), 0)
-  };
-  totals.totalLoansNet = totals.totalLoansBorrowed - totals.totalLoansRepaid;
-  totals.netBalance = totals.totalWeekly - totals.totalWithdrawals - totals.totalLoansNet;
-  totals.perMember = perMemberBalances;
-  return totals;
-}
-
-// ---------- render ----------
-function renderOverview(totals) {
-  // create placeholders in admin.html for these IDs if not present
-  // (totalMembers, totalWeekly, totalWithdrawals, totalLoansBorrowed, totalLoansRepaid, netBalance)
-  const ensure = (id, defaultText="0") => {
-    if (!document.getElementById(id)) {
-      const div = document.createElement("div");
-      div.id = id;
-      document.body.insertBefore(div, document.body.firstChild);
-    }
-    document.getElementById(id).textContent = totals[id] !== undefined ? (Number(totals[id]).toFixed(2) || totals[id]) : defaultText;
-  };
-
-  // If you already have placeholders with these IDs this will update them
-  document.getElementById("totalMembers")?.textContent = totals.totalMembers;
-  document.getElementById("totalWeekly")?.textContent = (totals.totalWeekly || 0).toFixed(2);
-  document.getElementById("totalWithdrawals")?.textContent = (totals.totalWithdrawals || 0).toFixed(2);
-  document.getElementById("totalLoansBorrowed")?.textContent = (totals.totalLoansBorrowed || 0).toFixed(2);
-  document.getElementById("totalLoansRepaid")?.textContent = (totals.totalLoansRepaid || 0).toFixed(2);
-  document.getElementById("netBalance")?.textContent = (totals.netBalance || 0).toFixed(2);
-}
-
-// build members table (with balances column)
-function renderMembersTable(perMember) {
+// ---------- Render Functions ----------
+function renderMembers() {
   const tbody = document.querySelector("#membersTable tbody");
-  if (!tbody) return;
   tbody.innerHTML = "";
-  state.members.forEach(m => {
-    const uname = m.username || m.name || "";
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="date" value="${m.startDate||''}" onchange="adminUpdate('members','${m._id}','startDate',this.value)"></td>
-      <td><input type="text" value="${(m.name||'')}" onchange="adminUpdate('members','${m._id}','name',this.value)"></td>
-      <td>${(perMember[uname]||0).toFixed(2)}</td>
+  data.members.forEach((m,i) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input value="${m.startDate || ''}" type="date" onchange="updateMember(${i}, 'startDate', this.value)"></td>
+      <td><input value="${m.name || ''}" type="text" onchange="updateMember(${i}, 'name', this.value)"></td>
       <td>
-        <select onchange="adminUpdate('members','${m._id}','status',this.value)">
+        <select onchange="updateMember(${i}, 'status', this.value)">
           <option value="active" ${m.status==="active"?"selected":""}>Active</option>
           <option value="inactive" ${m.status==="inactive"?"selected":""}>Inactive</option>
         </select>
       </td>
-      <td><button onclick="adminDelete('members','${m._id}')">Delete</button></td>
+      <td><button onclick="deleteRow('members',${i})">Delete</button></td>
     `;
-    tbody.appendChild(tr);
+    tbody.appendChild(row);
   });
 }
 
-// weekly table
-function renderWeeklyTable(perMember) {
+function renderWeekly() {
   const tbody = document.querySelector("#weeklyTable tbody");
-  if (!tbody) return;
   tbody.innerHTML = "";
-  state.weekly.forEach(w => {
-    const current = perMember[w.member] || 0;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="text" value="${w.member||''}" onchange="adminUpdate('weekly','${w._id}','member',this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('weekly','${w._id}','date',this.value)"></td>
-      <td><input type="number" value="${w.amount||0}" onchange="adminUpdate('weekly','${w._id}','amount',this.value)"></td>
+  const balances = getMemberBalances();
+
+  data.weekly.forEach((w,i) => {
+    const current = balances[w.member] || 0;
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="text" value="${w.member || ''}" placeholder="username" onchange="updateWeekly(${i}, 'member', this.value)"></td>
+      <td><input type="date" value="${w.date || ''}" onchange="updateWeekly(${i}, 'date', this.value)"></td>
+      <td><input type="number" value="${w.amount || 0}" onchange="updateWeekly(${i}, 'amount', this.value)"></td>
       <td>${current.toFixed(2)}</td>
-      <td><button onclick="adminDelete('weekly','${w._id}')">Delete</button></td>
+      <td><button onclick="deleteRow('weekly',${i})">Delete</button></td>
     `;
-    tbody.appendChild(tr);
+    tbody.appendChild(row);
   });
 }
 
-// withdrawals table
-function renderWithdrawalsTable(perMember) {
+function renderWithdrawals() {
   const tbody = document.querySelector("#withdrawalTable tbody");
-  if (!tbody) return;
   tbody.innerHTML = "";
-  state.withdrawals.forEach(w => {
-    const current = perMember[w.member] || 0;
-    const after = current - (Number(w.withdrawn||0));
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="text" value="${w.member||''}" onchange="adminUpdate('withdrawals','${w._id}','member',this.value)"></td>
+  const balances = getMemberBalances();
+
+  data.withdrawals.forEach((w,i) => {
+    const current = balances[w.member] || 0;
+    const after = current - (parseFloat(w.withdrawn)||0);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="text" value="${w.member || ''}" placeholder="username" onchange="updateWithdrawal(${i}, 'member', this.value)"></td>
       <td>${current.toFixed(2)}</td>
-      <td><input type="number" value="${w.withdrawn||0}" onchange="adminUpdate('withdrawals','${w._id}','withdrawn',this.value)"></td>
-      <td><input type="date" value="${w.date||''}" onchange="adminUpdate('withdrawals','${w._id}','date',this.value)"></td>
+      <td><input type="number" value="${w.withdrawn || 0}" onchange="updateWithdrawal(${i}, 'withdrawn', this.value)"></td>
+      <td><input type="date" value="${w.date || ''}" onchange="updateWithdrawal(${i}, 'date', this.value)"></td>
       <td>${after.toFixed(2)}</td>
-      <td><button onclick="adminDelete('withdrawals','${w._id}')">Delete</button></td>
+      <td><button onclick="deleteRow('withdrawals',${i})">Delete</button></td>
     `;
-    tbody.appendChild(tr);
+    tbody.appendChild(row);
   });
 }
 
-// loans table - shows loanLeft and late fee
-function renderLoansTable() {
+function renderLoans() {
   const tbody = document.querySelector("#loanTable tbody");
-  if (!tbody) return;
   tbody.innerHTML = "";
-  state.loans.forEach(l => {
-    const borrowed = Number(l.borrowed||0);
-    const repaid = Number(l.repayment||0);
+
+  data.loans.forEach((l,i) => {
+    const borrowed = parseFloat(l.borrowed) || 0;
+    const repaid = parseFloat(l.repayment) || 0;
     let loanLeft = Math.max(borrowed - repaid, 0);
     let lateFee = 0;
+
     const today = new Date();
     const finish = l.finishDate ? new Date(l.finishDate) : null;
     if (finish && today > finish && l.status === "ongoing") {
       lateFee = loanLeft * 0.02;
       loanLeft += lateFee;
     }
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="date" value="${l.dateTaken||''}" onchange="adminUpdate('loans','${l._id}','dateTaken',this.value)"></td>
-      <td><input type="text" value="${l.member||''}" onchange="adminUpdate('loans','${l._id}','member',this.value)"></td>
-      <td><input type="number" value="${l.loanRequested||0}" onchange="adminUpdate('loans','${l._id}','loanRequested',this.value)"></td>
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="date" value="${l.dateTaken || ''}" onchange="updateLoan(${i}, 'dateTaken', this.value)"></td>
+      <td><input type="text" value="${l.member || ''}" placeholder="username" onchange="updateLoan(${i}, 'member', this.value)"></td>
+      <td><input type="number" value="${l.loanRequested || 0}" onchange="updateLoan(${i}, 'loanRequested', this.value)"></td>
       <td><input type="number" value="${borrowed}"></td>
-      <td><input type="number" value="${repaid}" onchange="adminUpdate('loans','${l._id}','repayment',this.value)"></td>
-      <td><input type="date" value="${l.dueDate||''}" onchange="adminUpdate('loans','${l._id}','dueDate',this.value)"></td>
-      <td><input type="date" value="${l.finishDate||''}" onchange="adminUpdate('loans','${l._id}','finishDate',this.value)"></td>
+      <td><input type="number" value="${repaid}" onchange="updateLoan(${i}, 'repayment', this.value)"></td>
+      <td><input type="date" value="${l.dueDate || ''}" onchange="updateLoan(${i}, 'dueDate', this.value)"></td>
+      <td><input type="date" value="${l.finishDate || ''}" onchange="updateLoan(${i}, 'finishDate', this.value)"></td>
       <td>${loanLeft.toFixed(2)}</td>
       <td>${lateFee.toFixed(2)}</td>
       <td>
-        <select onchange="adminUpdate('loans','${l._id}','status',this.value)">
+        <select onchange="updateLoan(${i}, 'status', this.value)">
           <option value="ongoing" ${l.status==="ongoing"?"selected":""}>Ongoing</option>
           <option value="paid" ${l.status==="paid"?"selected":""}>Paid</option>
         </select>
       </td>
-      <td><button onclick="adminDelete('loans','${l._id}')">Delete</button></td>
+      <td><button onclick="deleteRow('loans',${i})">Delete</button></td>
     `;
-    tbody.appendChild(tr);
+    tbody.appendChild(row);
   });
 }
 
-// ---------- compute + render all ----------
-function computeAndRenderAll() {
-  const perMember = computePerMemberBalances();
-  const totals = computeTotals(perMember);
-  renderOverview(totals);
-  renderMembersTable(perMember);
-  renderWeeklyTable(perMember);
-  renderWithdrawalsTable(perMember);
-  renderLoansTable();
-  // optionally show per-member list somewhere
-  renderPerMemberList(perMember);
+// ---------- Add/Delete ----------
+function addMemberRow() { data.members.push({ startDate:"", name:"", status:"active" }); renderMembers(); }
+function addWeeklyRow() { data.weekly.push({ member:"", date:"", amount:0 }); renderWeekly(); }
+function addWithdrawalRow() { data.withdrawals.push({ member:"", withdrawn:0, date:"" }); renderWithdrawals(); }
+function addLoanRow() { data.loans.push({ dateTaken:"", member:"", loanRequested:0, borrowed:0, repayment:0, dueDate:"", finishDate:"", status:"ongoing" }); renderLoans(); }
+function deleteRow(section, index) { data[section].splice(index,1); saveDataToBackend(); }
+
+// ---------- Update Functions ----------
+function updateMember(i, key, value) { data.members[i][key] = value; saveDataToBackend(false); }
+function updateWeekly(i, key, value) { data.weekly[i][key] = key==="amount"?parseFloat(value):value; saveDataToBackend(false); }
+function updateWithdrawal(i, key, value) { data.withdrawals[i][key] = key==="withdrawn"?parseFloat(value):value; saveDataToBackend(false); }
+function updateLoan(i, key, value) { 
+  data.loans[i][key] = (key==="loanRequested" || key==="borrowed" || key==="repayment") ? parseFloat(value) : value; 
+  saveDataToBackend(false); 
 }
 
-// optional: show per-member breakdown in a side panel (if you have #perMemberDiv)
-function renderPerMemberList(perMember) {
-  const el = document.getElementById("perMemberDiv");
-  if (!el) return;
-  el.innerHTML = "<h4>Per-member balances</h4>";
-  for (const k of Object.keys(perMember)) {
-    const div = document.createElement("div");
-    div.textContent = `${k}: ${perMember[k].toFixed(2)}`;
-    el.appendChild(div);
-  }
-}
+// ---------- Save ----------
+async function saveDataToBackend(showAlert=true) {
+  // Ensure numeric fields are parsed
+  data.weekly.forEach(w => w.amount = parseFloat(w.amount || 0));
+  data.withdrawals.forEach(w => w.withdrawn = parseFloat(w.withdrawn || 0));
+  data.loans.forEach(l => {
+    l.loanRequested = parseFloat(l.loanRequested || 0);
+    l.borrowed = parseFloat(l.borrowed || 0);
+    l.repayment = parseFloat(l.repayment || 0);
+  });
 
-// ---------- CRUD actions ----------
-// Add template and call backend; server returns the inserted item (with _id)
-async function adminAdd(collection, template) {
   try {
-    // ensure numbers are numbers
-    ['amount','withdrawn','loanRequested','borrowed','repayment'].forEach(f=>{
-      if (template[f]!==undefined) template[f] = Number(template[f]||0);
+    await fetch('/api/admin-data', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(data)
     });
-
-    const res = await fetchWithAuth(`/api/admin-data/${collection}`, {
-      method: "POST",
-      body: JSON.stringify({ item: template })
-    });
-    if (!res.success) throw new Error(res.message || "Insert failed");
-    // server returns inserted item (including _id) — push to local state
-    const inserted = res.item || template;
-    state[collection].push(inserted);
-    computeAndRenderAll();
-  } catch (err) {
-    console.error("Add error:", err);
-    alert("Error adding item: " + err.message);
+    if(showAlert) alert("Saved.");
+    renderAll();
+  } catch(err) {
+    console.error("Error saving data:", err);
+    alert("Error saving data to server.");
   }
 }
 
-// Update - sends the whole item to server (item must include _id)
-async function adminUpdate(collection, id, key, value) {
-  try {
-    const arr = state[collection];
-    const item = arr.find(x => String(x._id) === String(id));
-    if (!item) return console.warn("Item not found", id);
-
-    // numeric parsing
-    if (["amount","withdrawn","loanRequested","borrowed","repayment"].includes(key)) {
-      item[key] = value === "" ? 0 : Number(value);
-    } else {
-      item[key] = value;
-    }
-    // send to server
-    const res = await fetchWithAuth(`/api/admin-data/${collection}`, {
-      method: "POST",
-      body: JSON.stringify({ item })
-    });
-    if (!res.success) throw new Error(res.message || "Update failed");
-    // server might return updated document; replace local
-    if (res.item) {
-      const idx = arr.findIndex(x=>String(x._id)===String(id));
-      if (idx!==-1) arr[idx] = res.item;
-    }
-    computeAndRenderAll();
-  } catch (err) {
-    console.error("Update error:", err);
-    alert("Error updating item: " + err.message);
-    await loadData(); // reload in case of failure
-  }
+// ---------- Render All ----------
+function renderAll() {
+  renderMembers();
+  renderWeekly();
+  renderWithdrawals();
+  renderLoans();
 }
 
-// Delete
-async function adminDelete(collection, id) {
-  try {
-    if (!confirm("Delete this item?")) return;
-    const item = { _id: id };
-    const res = await fetchWithAuth(`/api/admin-data/${collection}`, {
-      method: "POST",
-      body: JSON.stringify({ item, deleteFlag: true })
-    });
-    if (!res.success) throw new Error(res.message || "Delete failed");
-    state[collection] = state[collection].filter(x => String(x._id) !== String(id));
-    computeAndRenderAll();
-  } catch (err) {
-    console.error("Delete error:", err);
-    alert("Error deleting item: " + err.message);
-    await loadData();
-  }
-}
+// ---------- Navigation ----------
+function goToMemberPage() { window.location.href = "member.html"; }
+function logout() { localStorage.clear(); window.location.href = "index.html"; }
 
-// ---------- small helpers to be callable from inline attributes ----------
-window.adminAdd = adminAdd;
-window.adminUpdate = adminUpdate;
-window.adminDelete = adminDelete;
-
-// convenience add functions with templates
-window.addMemberRow = () => adminAdd("members", { username: "", password: "", role: "member", name: "", status: "active", startDate: new Date().toISOString().split("T")[0] });
-window.addWeeklyRow = () => adminAdd("weekly", { member: "", amount: 0, date: new Date().toISOString().split("T")[0] });
-window.addWithdrawalRow = () => adminAdd("withdrawals", { member: "", withdrawn: 0, date: new Date().toISOString().split("T")[0] });
-window.addLoanRow = () => adminAdd("loans", { member: "", loanRequested: 0, borrowed: 0, repayment: 0, dateTaken: new Date().toISOString().split("T")[0], dueDate: "", finishDate: "", status: "ongoing" });
-
-window.logout = () => { localStorage.removeItem("token"); window.location.href="index.html"; };
-
-// initial load
-loadData();
+window.addMemberRow = addMemberRow;
+window.addWeeklyRow = addWeeklyRow;
+window.addWithdrawalRow = addWithdrawalRow;
+window.addLoanRow = addLoanRow;
+window.deleteRow = deleteRow;
+window.saveDataToBackend = saveDataToBackend;
+window.goToMemberPage = goToMemberPage;
+window.logout = logout;
 </script>
 
 <footer>

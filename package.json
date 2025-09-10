@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Family banking web app with members, admin, loans, and withdrawals",
   "main": "server.js",
-  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"

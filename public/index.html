@@ -123,7 +123,7 @@
         <option value="member">Member</option>
         <option value="admin">Admin</option>
       </select>
-      <button type="submit">Login</button>
+      <button id="loginBtn">Login</button>
     </form>
     <p class="signup-text">
       Don’t have an account? <a href="signup.html">Sign up</a>
@@ -133,43 +133,54 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
-  if(!loginForm) return;
+  if (!loginForm) return;
 
+  // ---------- Show/hide password ----------
+  const showPass = document.getElementById("showPassword"); // this ID must exist on your login page
+  if (showPass) {
+    showPass.addEventListener("change", function() {
+      const pass = document.getElementById("password");
+      pass.type = this.checked ? "text" : "password";
+    });
+  }
+
+  // ---------- Handle login ----------
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value.trim();
 
-    if(!username || !password){
-      alert("Please enter both username and password.");
+    if (!username || !password) {
+      alert("Enter both username and password");
       return;
     }
 
     try {
-      const res = await fetch("/login", {
+      const res = await fetch("/index", { // match your backend route
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
+
       const result = await res.json();
 
-      if(result.success){
-        // Save user info
-        localStorage.setItem("loggedInUser", username);
-        localStorage.setItem("role", result.role || "member");
-        localStorage.setItem("displayName", result.name || username);
+      if (result.success) {
+        // Save user data in localStorage
+        localStorage.setItem("loggedInUser", result.username);
+        localStorage.setItem("role", result.role);
+        localStorage.setItem("displayName", result.name);
 
-        // Redirect to correct page
-        if(result.role === "admin"){
+        // Redirect correctly
+        if (result.role === "admin") {
           window.location.href = "admin.html";
         } else {
           window.location.href = "member.html";
         }
       } else {
-        alert(result.message || "Login failed. Check credentials.");
+        alert(result.message || "Login failed");
       }
-    } catch(err){
+    } catch (err) {
       console.error("Login error:", err);
       alert("Server error. Try again later.");
     }

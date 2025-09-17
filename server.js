@@ -65,17 +65,32 @@ app.post("/signup", async (req, res) => {
 
 // ---------- Login ----------
 app.post("/index", async (req, res) => {
-  const { username, password } = req.body;
-  const user = await membersCol.findOne({ username, password });
-  if (!user) return res.json({ success: false, message: "Invalid username or password." });
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.json({ success: false, message: "Please enter username and password." });
+    }
 
-  res.json({
-    success: true,
-    role: user.role,
-    name: user.name,
-    username: user.username
-  });
+    // Find the user in MongoDB
+    const user = await membersCol.findOne({ username, password });
+    if (!user) {
+      return res.json({ success: false, message: "Invalid username or password." });
+    }
+
+    // Return user info to frontend
+    res.json({
+      success: true,
+      username: user.username,
+      name: user.name,      // for displayName in frontend
+      role: user.role       // 'member' or 'admin'
+    });
+
+  } catch (err) {
+    console.error("Login error:", err);
+    res.json({ success: false, message: "Something wrong with login. Contact Administrator." });
+  }
 });
+
 
 // ---------- Admin ----------
 app.get("/api/admin-data", async (req, res) => {

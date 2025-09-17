@@ -83,21 +83,44 @@ app.post("/index", async (req, res) => {
   }
 });
 
-// ---------- Admin: Manage Members ----------
+// ---------- Admin: Get All Data ----------
+app.get("/api/admin-data", async (req, res) => {
+  try {
+    const members = await membersCol.find().toArray();
+    const weekly = await weeklyCol.find().toArray();
+    const withdrawals = await withdrawalsCol.find().toArray();
+    const loansRaw = await loansCol.find().toArray();
 
-// Add member
+    // Calculate loanLeft and late fee
+    const loans = loansRaw.map(l => {
+      const borrowed = parseFloat(l.borrowed || 0);
+      const repaid = parseFloat(l.repayment || 0);
+      let loanLeft = Math.max(borrowed - repaid, 0);
+      let lateFee = 0;
+
+      if (l.finishDate && new Date(l.finishDate) < new Date() && l.status === "ongoing") {
+        lateFee = loanLeft * 0.02;
+        loanLeft += lateFee;
+      }
+
+      return { ...l, loanLeft, lateFee };
+    });
+
+    res.json({ members, weekly, withdrawals, loans });
+  } catch (err) {
+    console.error("Admin data error:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch admin data" });
+  }
+});
+
+// ---------- Add Member ----------
 app.post("/api/admin/add-member", async (req, res) => {
   try {
     const { fullname, email, username, password } = req.body;
+    if (!fullname || !email || !username || !password) return res.json({ success: false, message: "All fields required" });
 
-    if (!fullname || !email || !username || !password) {
-      return res.json({ success: false, message: "All fields are required" });
-    }
-
-    const existing = await membersCol.findOne({ username });
-    if (existing) {
-      return res.json({ success: false, message: "Username already exists" });
-    }
+    const exists = await membersCol.findOne({ username });
+    if (exists) return res.json({ success: false, message: "Username already exists" });
 
     const newMember = {
       startDate: new Date().toISOString().split("T")[0],
@@ -108,135 +131,75 @@ app.post("/api/admin/add-member", async (req, res) => {
       role: "member",
       status: "active",
     };
-
     await membersCol.insertOne(newMember);
-    res.json({ success: true, message: "Member added successfully", member: newMember });
+    res.json({ success: true, message: "Member added", member: newMember });
   } catch (err) {
-    console.error("Add member error:", err);
+    console.error(err);
     res.json({ success: false, message: "Failed to add member" });
   }
 });
 
-// Delete member
-app.delete("/api/admin/delete-member/:username", async (req, res) => {
-  try {
-    const { username } = req.params;
-    const result = await membersCol.deleteOne({ username });
-
-    if (result.deletedCount === 0) {
-      return res.json({ success: false, message: "Member not found" });
-    }
-
-    res.json({ success: true, message: "Member deleted successfully" });
-  } catch (err) {
-    console.error("Delete member error:", err);
-    res.json({ success: false, message: "Failed to delete member" });
-  }
-});
-
-// Update member (for contributions, loans, etc.)
-app.post("/api/admin/update-member", async (req, res) => {
-  try {
-    const { username, weeklyContribution, loan, withdrawal } = req.body;
-
-    const user = await membersCol.findOne({ username });
-    if (!user) return res.json({ success: false, message: "Member not found" });
-
-    if (weeklyContribution) {
-      await weeklyCol.insertOne({
-        member: username,
-        amount: parseFloat(weeklyContribution),
-        date: new Date().toISOString().split("T")[0]
-      });
-    }
-
-    if (loan) {
-      await loansCol.insertOne({
-        member: username,
-        borrowed: parseFloat(loan),
-        repayment: 0,
-        dateTaken: new Date().toISOString().split("T")[0],
-        status: "ongoing"
-      });
-    }
-
-    if (withdrawal) {
-      await withdrawalsCol.insertOne({
-        member: username,
-        withdrawn: parseFloat(withdrawal),
-        date: new Date().toISOString().split("T")[0]
-      });
-    }
-
-    res.json({ success: true, message: "Member updated successfully" });
-  } catch (err) {
-    console.error("Update member error:", err);
-    res.json({ success: false, message: "Failed to update member" });
-  }
-});
-
-// ---------- Admin: Record Transactions ----------
-
-// Weekly contribution
+// ---------- Add Weekly Contribution ----------
 app.post("/api/admin/add-weekly", async (req, res) => {
   try {
-    const { username, amount } = req.body;
+    const { username, amount, date } = req.body;
     const user = await membersCol.findOne({ username });
     if (!user) return res.json({ success: false, message: "Member not found" });
 
     await weeklyCol.insertOne({
       member: username,
       amount: parseFloat(amount),
-      date: new Date().toISOString().split("T")[0]
+      date: date || new Date().toISOString().split("T")[0]
     });
-
-    res.json({ success: true, message: "Weekly contribution recorded." });
+    res.json({ success: true, message: "Weekly contribution added" });
   } catch (err) {
-    console.error("Add weekly error:", err);
-    res.json({ success: false, message: "Failed to add weekly contribution." });
+    console.error(err);
+    res.json({ success: false, message: "Failed to add weekly contribution" });
   }
 });
 
-// Withdrawal
+// ---------- Add Withdrawal ----------
 app.post("/api/admin/add-withdrawal", async (req, res) => {
   try {
-    const { username, amount } = req.body;
+    const { username, amount, date } = req.body;
     const user = await membersCol.findOne({ username });
     if (!user) return res.json({ success: false, message: "Member not found" });
 
     await withdrawalsCol.insertOne({
       member: username,
       withdrawn: parseFloat(amount),
-      date: new Date().toISOString().split("T")[0]
+      date: date || new Date().toISOString().split("T")[0]
     });
-
-    res.json({ success: true, message: "Withdrawal recorded." });
+    res.json({ success: true, message: "Withdrawal added" });
   } catch (err) {
-    console.error("Add withdrawal error:", err);
-    res.json({ success: false, message: "Failed to record withdrawal." });
+    console.error(err);
+    res.json({ success: false, message: "Failed to add withdrawal" });
   }
 });
 
-// Loan
+// ---------- Add Loan ----------
 app.post("/api/admin/add-loan", async (req, res) => {
   try {
-    const { username, amount } = req.body;
+    const { username, loanRequested, borrowed, repayment, dateTaken, dueDate, finishDate, status } = req.body;
     const user = await membersCol.findOne({ username });
     if (!user) return res.json({ success: false, message: "Member not found" });
 
-    await loansCol.insertOne({
+    const newLoan = {
       member: username,
-      loanRequested: parseFloat(amount),
-      borrowed: parseFloat(amount),
-      repayment: 0,
-      dateTaken: new Date().toISOString().split("T")[0],
-      status: "ongoing"
-    });
+      loanRequested: parseFloat(loanRequested || 0),
+      borrowed: parseFloat(borrowed || loanRequested || 0),
+      repayment: parseFloat(repayment || 0),
+      dateTaken: dateTaken || new Date().toISOString().split("T")[0],
+      dueDate: dueDate || null,
+      finishDate: finishDate || null,
+      status: status || "ongoing"
+    };
 
-    res.json({ success: true, message: "Loan recorded." });
+    await loansCol.insertOne(newLoan);
+    res.json({ success: true, message: "Loan added", loan: newLoan });
   } catch (err) {
-    console.error("Add loan error:", err);
-    res.json({ success: false, message: "Failed to record loan." });
+    console.error(err);
+    res.json({ success: false, message: "Failed to add loan" });
   }
 });
 

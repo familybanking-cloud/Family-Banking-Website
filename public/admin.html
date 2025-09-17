@@ -20,21 +20,6 @@ footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; mar
 </head>
 <body>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard</title>
-<style>
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-  th { background: #f0f0f0; }
-  button { margin: 5px; }
-</style>
-</head>
-<body>
-
 <header>
   <h1>Admin Dashboard</h1>
   <p>Welcome, <span id="adminName"></span></p>
@@ -90,57 +75,27 @@ footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; mar
 </section>
 
 <script>
-window.onload = async function() {
-  const role = localStorage.getItem("role");
-  const name = localStorage.getItem("name") || "Admin";
-  document.getElementById("adminName").textContent = name;
-  if (role !== "admin") {
-    alert("Access denied. Admins only.");
-    window.location.href = "index.html";
-    return;
-  }
-  await loadData();
-};
-
-// ---------- Data ----------
 let data = { members: [], weekly: [], withdrawals: [], loans: [] };
 
-// ---------- Load ----------
+// ---------- Load Admin Data ----------
 async function loadData() {
   try {
     const res = await fetch("/api/admin-data");
     data = await res.json();
     renderAll();
-  } catch (err) {
-    console.error("Error loading data:", err);
-  }
+  } catch (err) { console.error("Error loading admin data:", err); }
 }
 
-// ---------- Balances ----------
-function getMemberBalances() {
-  const balances = {};
-  data.members.forEach(m => balances[m.username] = 0);
-  data.weekly.forEach(w => balances[w.member] = (balances[w.member]||0) + parseFloat(w.amount||0));
-  data.withdrawals.forEach(w => balances[w.member] = (balances[w.member]||0) - parseFloat(w.withdrawn||0));
-  data.loans.forEach(l => balances[l.member] = (balances[l.member]||0) - parseFloat(l.borrowed||0) + parseFloat(l.repayment||0));
-  return balances;
-}
-
-// ---------- Render ----------
+// ---------- Render Functions ----------
 function renderMembers() {
   const tbody = document.querySelector("#membersTable tbody");
   tbody.innerHTML = "";
-  data.members.forEach(m => {
+  data.members.forEach((m, i) => {
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><input type="date" value="${m.startDate||''}" onchange="updateMember('${m.username}','startDate',this.value)"></td>
-      <td><input type="text" value="${m.name||''}" onchange="updateMember('${m.username}','name',this.value)"></td>
-      <td>
-        <select onchange="updateMember('${m.username}','status',this.value)">
-          <option value="active" ${m.status==='active'?'selected':''}>Active</option>
-          <option value="inactive" ${m.status==='inactive'?'selected':''}>Inactive</option>
-        </select>
-      </td>
+      <td>${m.startDate || ''}</td>
+      <td>${m.name || ''}</td>
+      <td>${m.status || 'active'}</td>
       <td><button onclick="deleteMember('${m.username}')">Delete</button></td>
     `;
     tbody.appendChild(row);
@@ -150,7 +105,7 @@ function renderMembers() {
 function renderWeekly() {
   const tbody = document.querySelector("#weeklyTable tbody");
   tbody.innerHTML = "";
-  const balances = getMemberBalances();
+  const balances = getBalances();
   data.weekly.forEach(w => {
     const row = document.createElement("tr");
     row.innerHTML = `
@@ -163,126 +118,56 @@ function renderWeekly() {
   });
 }
 
-function renderWithdrawals() {
-  const tbody = document.querySelector("#withdrawalTable tbody");
-  tbody.innerHTML = "";
-  const balances = getMemberBalances();
-  data.withdrawals.forEach(w => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${w.member}</td>
-      <td>${w.date}</td>
-      <td>${w.withdrawn}</td>
-      <td>${balances[w.member]?.toFixed(2)||0}</td>
-    `;
-    tbody.appendChild(row);
-  });
-}
-
-function renderLoans() {
-  const tbody = document.querySelector("#loanTable tbody");
-  tbody.innerHTML = "";
-  data.loans.forEach(l => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${l.member}</td>
-      <td>${l.dateTaken}</td>
-      <td>${l.borrowed}</td>
-      <td>${l.repayment}</td>
-      <td>${l.status}</td>
-    `;
-    tbody.appendChild(row);
-  });
+// ---------- Calculate Balances ----------
+function getBalances() {
+  const balances = {};
+  data.members.forEach(m => balances[m.username] = 0);
+  data.weekly.forEach(w => balances[w.member] = (balances[w.member]||0)+parseFloat(w.amount||0));
+  data.withdrawals.forEach(w => balances[w.member] = (balances[w.member]||0)-parseFloat(w.withdrawn||0));
+  data.loans.forEach(l => balances[l.member] = (balances[l.member]||0)-parseFloat(l.borrowed||0)+parseFloat(l.repayment||0));
+  return balances;
 }
 
 // ---------- Admin Actions ----------
-async function updateMember(username, field, value) {
-  await fetch("/api/admin/update-member", {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ username, field, value })
+async function addMember(name, email, username, password) {
+  const res = await fetch("/api/admin/add-member", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fullname:name, email, username, password })
   });
+  await loadData();
+}
+
+async function addWeekly(member, amount) {
+  await fetch("/api/admin/add-weekly", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ username:member, amount }) });
+  await loadData();
+}
+
+async function addWithdrawal(member, amount) {
+  await fetch("/api/admin/add-withdrawal", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ username:member, amount }) });
+  await loadData();
+}
+
+async function addLoan(member, amount) {
+  await fetch("/api/admin/add-loan", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ username:member, loanRequested:amount }) });
   await loadData();
 }
 
 async function deleteMember(username) {
-  if(!confirm("Delete member?")) return;
-  await fetch(`/api/admin/delete-member/${username}`, { method:'DELETE' });
-  await loadData();
-}
-
-async function promptAddMember() {
-  const fullname = prompt("Full name:");
-  const email = prompt("Email:");
-  const username = prompt("Username:");
-  const password = prompt("Password:");
-  if(!fullname || !email || !username || !password) return;
-  await fetch("/api/admin/add-member", {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ fullname, email, username, password })
-  });
-  await loadData();
-}
-
-async function promptAddWeekly() {
-  const member = prompt("Member username:");
-  const amount = prompt("Contribution amount:");
-  if(!member || !amount) return;
-  await fetch("/api/admin/add-weekly", {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ username: member, amount })
-  });
-  await loadData();
-}
-
-async function promptAddWithdrawal() {
-  const member = prompt("Member username:");
-  const amount = prompt("Withdrawal amount:");
-  if(!member || !amount) return;
-  await fetch("/api/admin/add-withdrawal", {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ username: member, amount })
-  });
-  await loadData();
-}
-
-async function promptAddLoan() {
-  const member = prompt("Member username:");
-  const amount = prompt("Loan amount:");
-  if(!member || !amount) return;
-  await fetch("/api/admin/add-loan", {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ username: member, amount })
-  });
+  await fetch(`/api/admin/delete-member/${username}`, { method:"DELETE" });
   await loadData();
 }
 
 // ---------- Render All ----------
-function renderAll() {
-  renderMembers();
-  renderWeekly();
-  renderWithdrawals();
-  renderLoans();
-}
+function renderAll() { renderMembers(); renderWeekly(); }
 
-// ---------- Logout ----------
-function logout() {
-  localStorage.clear();
-  window.location.href = "index.html";
-}
-
-// Make functions global for HTML
-window.logout = logout;
-window.updateMember = updateMember;
+// ---------- Init ----------
+window.onload = loadData;
+window.addMember = addMember;
+window.addWeekly = addWeekly;
+window.addWithdrawal = addWithdrawal;
+window.addLoan = addLoan;
 window.deleteMember = deleteMember;
-window.promptAddMember = promptAddMember;
-window.promptAddWeekly = promptAddWeekly;
-window.promptAddWithdrawal = promptAddWithdrawal;
-window.promptAddLoan = promptAddLoan;
 </script>
 
 <footer>

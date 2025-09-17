@@ -1,12 +1,14 @@
+require("dotenv").config();
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
-const { MongoClient, ObjectId } = require("mongodb");
+const { MongoClient } = require("mongodb");
 
 const app = express();
-const PORT = process.env.PORT || 10000; // For Render
-const MONGO_URI = process.env.MONGO_URI || "your_mongodb_connection_string"; // Set in Render env vars
-const DB_NAME = "familyBank";
+const PORT = process.env.PORT || 10000;
+const MONGO_URI = process.env.MONGO_URI || "your-mongodb-uri";
+const DB_NAME = "familyBanking";
 
 // ---------- Middleware ----------
 app.use(bodyParser.json());
@@ -15,19 +17,54 @@ app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
 // ---------- MongoDB Connection ----------
 let db, membersCol, weeklyCol, withdrawalsCol, loansCol;
 
-MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
-  .then(client => {
+async function connectDB() {
+  try {
+    const client = await MongoClient.connect(MONGO_URI, { useUnifiedTopology: true });
     db = client.db(DB_NAME);
     membersCol = db.collection("members");
     weeklyCol = db.collection("weekly");
     withdrawalsCol = db.collection("withdrawals");
     loansCol = db.collection("loans");
     console.log("✅ Connected to MongoDB");
-  })
-  .catch(err => console.error("❌ MongoDB connection error:", err));
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err);
+    process.exit(1); // stop app if DB fails
+  }
+}
+
+// ---------- Signup ----------
+app.post("/signup", async (req, res) => {
+  try {
+    const { fullname, email, username, password } = req.body;
+    if (!fullname || !email || !username || !password) {
+      return res.json({ success: false, message: "Please fill all fields." });
+    }
+
+    const existingUser = await membersCol.findOne({ username });
+    if (existingUser) {
+      return res.json({ success: false, message: "Username already exists." });
+    }
+
+    const newUser = {
+      startDate: new Date().toISOString().split("T")[0],
+      name: fullname,
+      email,
+      username,
+      password, // NOTE: should hash later
+      role: "member",
+      status: "active",
+    };
+
+    await membersCol.insertOne(newUser);
+    res.json({ success: true, message: "Signup successful! You can now log in." });
+  } catch (err) {
+    console.error("Signup error:", err);
+    res.json({ success: false, message: "Signup error. Contact Administrator" });
+  }
+});
 
 // ---------- Login ----------
-app.post("/login", async (req, res) => {
+app.post("/index", async (req, res) => {
   const { username, password } = req.body;
   const user = await membersCol.findOne({ username, password });
   if (!user) return res.json({ success: false, message: "Invalid username or password." });
@@ -40,29 +77,6 @@ app.post("/login", async (req, res) => {
   });
 });
 
-// ---------- Signup ----------
-app.post("/signup", async (req, res) => {
-  const { fullname, email, username, password } = req.body;
-  if (!fullname || !email || !username || !password)
-    return res.json({ success: false, message: "All fields required." });
-
-  const exists = await membersCol.findOne({ username });
-  if (exists) return res.json({ success: false, message: "Username already exists." });
-
-  const newUser = {
-    startDate: new Date().toISOString().split("T")[0],
-    name: fullname,
-    email,
-    username,
-    password,
-    role: "member",
-    status: "active"
-  };
-
-  await membersCol.insertOne(newUser);
-  res.json({ success: true });
-});
-
 // ---------- Admin ----------
 app.get("/api/admin-data", async (req, res) => {
   const members = await membersCol.find().toArray();
@@ -73,7 +87,6 @@ app.get("/api/admin-data", async (req, res) => {
 });
 
 app.post("/api/admin-data", async (req, res) => {
-  // Overwrites collections (use carefully)
   const { members, weekly, withdrawals, loans } = req.body;
   if (members && membersCol) {
     await membersCol.deleteMany({});
@@ -94,7 +107,7 @@ app.post("/api/admin-data", async (req, res) => {
   res.json({ success: true });
 });
 
-// Change password
+// ---------- Change password ----------
 app.post("/api/change-password", async (req, res) => {
   const { username, oldPassword, newPassword } = req.body;
   if (!username || !oldPassword || !newPassword)
@@ -167,4 +180,6 @@ pages.forEach(p => {
 });
 
 // ---------- Start server ----------
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+connectDB().then(() => {
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+});

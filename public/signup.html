@@ -1,153 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Family Banking Signup</title>
-<style>
-    /* General Styles */
-    body {
-      background-color: #d21616; /* background color for entire page */
-      color: #ffffff; /* font color for entire page */
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 0;
-      line-height: 1.6;
-    }
-    nav {
-      background: #000000; 
-      color: rgb(248, 252, 2); 
-      padding: 10px 20px; 
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-    }
-    nav a {
-      color:rgb(237, 254, 0); 
-      text-decoration:none; 
-      margin:0 10px;
-      font-weight:bold;
-    }
-    nav a:hover { text-decoration: underline; }
-
-    .signup-section {
-      background:#000; 
-      padding:50px;
-      max-width:400px; 
-      margin:50px auto; 
-      border-radius:10px; 
-      color:rgb(255, 255, 255);
-    }
-    .signup-section h2 { text-align:center; }
-    .signup-section input {
-      width:100%; 
-      padding:10px; 
-      margin:10px 0; 
-      border-radius:5px;
-    }
-    .signup-section button {
-      width:100%; 
-      padding:10px;
-      background:#ffdd00; 
-      color:rgb(0, 0, 0); 
-      border:none; 
-      border-radius:5px; 
-      cursor:pointer; 
-      font-weight:bold;
-    }
-    .signup-section button:hover { background:#ff0000; }
-    label { 
-      cursor:pointer;
-      display:block; 
-      margin-bottom:10px;
-    }
-
-    /* Red triangle icon for invalid fields */
-    .signup-section input:invalid {
-      border: 2px solid #faf604;
-      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="red"><polygon points="12,2 22,22 2,22"/></svg>');
-      background-repeat: no-repeat;
-      background-position: right 10px center;
-      background-size: 20px;
-    }
-
-    /* Footer */
-    footer {
-      background: #060606;
-      color: #f2fa00;
-      text-align: center;
-      padding: 15px;
-      margin-top: 40px;
-    }
-</style>
+  <meta charset="UTF-8">
+  <title>Signup</title>
+  <style>
+    body { background: #d21616; font-family: sans-serif; color:#fff; }
+    .signup-section { max-width:400px; margin:50px auto; background:#000; padding:30px; border-radius:10px; }
+    input, button { width:100%; padding:10px; margin:10px 0; border-radius:5px; }
+    button { background:#ffdd00; color:#000; border:none; cursor:pointer; font-weight:bold; }
+    button:hover { background:#ff0000; color:#fff; }
+    label { display:block; cursor:pointer; }
+  </style>
 </head>
 <body>
 
-<nav>
-  <div class="logo"><img src="logo.jpeg" alt="Family Banking Logo" style="height:50px;"></div>
-  <div class="nav-links">
-      <a href="home.html">Home</a>
-      <a href="about.html">About</a>
-      <a href="contact.html">Contact</a>
-  </div>
-</nav>
-
 <div class="signup-section">
   <h2>Sign Up</h2>
-  <input type="text" id="signupName" placeholder="Full Name" required title="Please enter your full name">
-  <input type="email" id="signupEmail" placeholder="Email" required title="Please enter your email">
-  <input type="text" id="signupUsername" placeholder="Username" required title="Please enter your username">
-  <input type="password" id="signupPassword" placeholder="Password" required title="Please enter a password">
-  <input type="password" id="signupConfirmPassword" placeholder="Confirm Password" required title="Please confirm your password">
+  <input type="text" id="signupName" placeholder="Full Name" required>
+  <input type="email" id="signupEmail" placeholder="Email" required>
+  <input type="text" id="signupUsername" placeholder="Username" required>
+  <input type="password" id="signupPassword" placeholder="Password" required>
+  <input type="password" id="signupConfirmPassword" placeholder="Confirm Password" required>
   <label><input type="checkbox" id="showSignupPassword"> Show Passwords</label>
-  <button type="button" id="signupBtn">Sign Up</button>
-  <p style="text-align:center; margin-top:10px; cursor:pointer; color:#fb1a1a;" onclick="window.location.href='index.html'">
-      Already have an account? Login</p>
+  <button id="signupBtn">Sign Up</button>
+  <p>Already have an account? <a href="index.html">Login</a></p>
+  <p id="message" style="color:red;"></p>
 </div>
 
-<p id="message" style="color:red; text-align:center; margin-top:10px;"></p>
-
-<footer>
-  <p>© 2025 Family Banking | Saving as One, Suceeding as Many </p>
-</footer>
-
 <script>
-const signupForm = document.getElementById("signupForm");
+window.onload = () => {
+  const msg = document.getElementById("message");
 
-signupForm.addEventListener("submit", async function(e) {
-  e.preventDefault(); // Prevent default form submission
+  document.getElementById("showSignupPassword").addEventListener("change", function() {
+    const pass = document.getElementById("signupPassword");
+    const confirmPass = document.getElementById("signupConfirmPassword");
+    pass.type = confirmPass.type = this.checked ? "text" : "password";
+  });
 
-  const fullname = document.getElementById("fullname").value.trim();
-  const email = document.getElementById("email").value.trim();
-  const username = document.getElementById("username").value.trim();
-  const password = document.getElementById("password").value.trim();
+  document.getElementById("signupBtn").addEventListener("click", async function() {
+    msg.textContent = "";
 
-  if (!fullname || !email || !username || !password) {
-    alert("All fields are required.");
-    return;
-  }
+    const fullname = document.getElementById("signupName").value.trim();
+    const email = document.getElementById("signupEmail").value.trim();
+    const username = document.getElementById("signupUsername").value.trim();
+    const password = document.getElementById("signupPassword").value;
+    const confirmPassword = document.getElementById("signupConfirmPassword").value;
 
-  try {
-    const res = await fetch("/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullname, email, username, password })
-    });
-
-    const result = await res.json();
-
-    if (result.success) {
-      alert("Signup successful! Redirecting to login page...");
-      window.location.href = "/index.html"; // <-- redirect to login
-    } else {
-      alert(result.message || "Signup failed.");
+    if(!fullname || !email || !username || !password || !confirmPassword){
+      msg.textContent = "Please fill all fields"; return;
     }
-  } catch (err) {
-    console.error("Error signing up:", err);
-    alert("Error connecting to server.");
-  }
-});
+    if(password !== confirmPassword){
+      msg.textContent = "Passwords do not match"; return;
+    }
+
+    try {
+      const res = await fetch("/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullname, email, username, password })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+  alert(data.message); // "Signup successful! You can now log in."
+  window.location.href = "/index.html"; // Correct redirect
+} else {
+  msg.textContent = data.message;
+}
+    } catch(err) {
+      console.error(err);
+      msg.textContent = "Signup error. Contact Administrator.";
+    }
+  });
+};
 </script>
+
+
 
 </body>
 </html>

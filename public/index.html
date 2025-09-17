@@ -133,20 +133,23 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
+  const msg = document.getElementById("message"); // make sure you have this element
+
   if (!loginForm) return;
 
   // ---------- Show/hide password ----------
-  const showPass = document.getElementById("showPassword"); // this ID must exist on your login page
+  const showPass = document.getElementById("showindexPassword");
   if (showPass) {
     showPass.addEventListener("change", function() {
       const pass = document.getElementById("password");
-      pass.type = this.checked ? "text" : "password";
+      if (pass) pass.type = this.checked ? "text" : "password";
     });
   }
 
   // ---------- Handle login ----------
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (msg) msg.textContent = "";
 
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value.trim();
@@ -166,12 +169,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await res.json();
 
       if (result.success) {
-        // Save user data in localStorage
         localStorage.setItem("loggedInUser", result.username);
         localStorage.setItem("role", result.role);
         localStorage.setItem("displayName", result.name);
 
-        // Redirect correctly
         if (result.role === "admin") {
           window.location.href = "admin.html";
         } else {
@@ -182,11 +183,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       console.error("Login error:", err);
-      alert("Server error. Try again later.");
+      alert("Something wrong with login. Contact Administrator.");
     }
   });
 });
 </script>
+
 
 </body>
 </html>

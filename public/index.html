@@ -161,8 +161,9 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem("loggedInUser", username);
         localStorage.setItem("role", result.role || "member");
         localStorage.setItem("displayName", result.name || username);
+        localStorage.setItem("balance", result.balance || 0);
 
-        // Redirect based on role
+        // Redirect: admin → admin.html, everyone else → member.html
         if (result.role === "admin") {
           window.location.href = "admin.html";
         } else {
@@ -178,7 +179,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 </script>
-
 
 </body>
 </html>

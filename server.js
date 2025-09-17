@@ -139,69 +139,90 @@ app.post("/api/admin/add-member", async (req, res) => {
   }
 });
 
-// ---------- Add Weekly Contribution ----------
-app.post("/api/admin/add-weekly", async (req, res) => {
+app.post("/api/admin/update-weekly", async (req, res) => {
   try {
-    const { username, amount, date } = req.body;
-    const user = await membersCol.findOne({ username });
-    if (!user) return res.json({ success: false, message: "Member not found" });
-
-    await weeklyCol.insertOne({
-      member: username,
-      amount: parseFloat(amount),
-      date: date || new Date().toISOString().split("T")[0]
-    });
-    res.json({ success: true, message: "Weekly contribution added" });
+    const { id, key, value } = req.body;
+    if (!id || !key) return res.json({ success: false, message: "Invalid data" });
+    
+    const updateObj = {};
+    updateObj[key] = key === "amount" ? parseFloat(value) : value;
+    
+    await weeklyCol.updateOne({ _id: ObjectId(id) }, { $set: updateObj });
+    res.json({ success: true, message: "Weekly contribution updated" });
   } catch (err) {
     console.error(err);
-    res.json({ success: false, message: "Failed to add weekly contribution" });
+    res.json({ success: false, message: "Failed to update weekly contribution" });
   }
 });
 
-// ---------- Add Withdrawal ----------
-app.post("/api/admin/add-withdrawal", async (req, res) => {
+app.post("/api/admin/update-withdrawal", async (req, res) => {
   try {
-    const { username, amount, date } = req.body;
-    const user = await membersCol.findOne({ username });
-    if (!user) return res.json({ success: false, message: "Member not found" });
+    const { id, key, value } = req.body;
+    if (!id || !key) return res.json({ success: false, message: "Invalid data" });
 
-    await withdrawalsCol.insertOne({
-      member: username,
-      withdrawn: parseFloat(amount),
-      date: date || new Date().toISOString().split("T")[0]
-    });
-    res.json({ success: true, message: "Withdrawal added" });
+    const updateObj = {};
+    updateObj[key] = key === "withdrawn" ? parseFloat(value) : value;
+
+    await withdrawalsCol.updateOne({ _id: ObjectId(id) }, { $set: updateObj });
+    res.json({ success: true, message: "Withdrawal updated" });
   } catch (err) {
     console.error(err);
-    res.json({ success: false, message: "Failed to add withdrawal" });
+    res.json({ success: false, message: "Failed to update withdrawal" });
   }
 });
 
-// ---------- Add Loan ----------
-app.post("/api/admin/add-loan", async (req, res) => {
+
+app.post("/api/admin/update-loan", async (req, res) => {
   try {
-    const { username, loanRequested, borrowed, repayment, dateTaken, dueDate, finishDate, status } = req.body;
-    const user = await membersCol.findOne({ username });
-    if (!user) return res.json({ success: false, message: "Member not found" });
+    const { id, key, value } = req.body;
+    if (!id || !key) return res.json({ success: false, message: "Invalid data" });
 
-    const newLoan = {
-      member: username,
-      loanRequested: parseFloat(loanRequested || 0),
-      borrowed: parseFloat(borrowed || loanRequested || 0),
-      repayment: parseFloat(repayment || 0),
-      dateTaken: dateTaken || new Date().toISOString().split("T")[0],
-      dueDate: dueDate || null,
-      finishDate: finishDate || null,
-      status: status || "ongoing"
-    };
+    const updateObj = {};
+    if (["loanRequested","borrowed","repayment"].includes(key)) {
+      updateObj[key] = parseFloat(value);
+    } else updateObj[key] = value;
 
-    await loansCol.insertOne(newLoan);
-    res.json({ success: true, message: "Loan added", loan: newLoan });
+    await loansCol.updateOne({ _id: ObjectId(id) }, { $set: updateObj });
+    res.json({ success: true, message: "Loan updated" });
   } catch (err) {
     console.error(err);
-    res.json({ success: false, message: "Failed to add loan" });
+    res.json({ success: false, message: "Failed to update loan" });
   }
 });
+//delete weekly contribution
+app.delete("/api/admin/delete-weekly/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await weeklyCol.deleteOne({ _id: ObjectId(id) });
+    res.json({ success: true, message: "Weekly contribution deleted" });
+  } catch (err) {
+    console.error(err);
+    res.json({ success: false, message: "Failed to delete weekly contribution" });
+  }
+});
+
+//delete withdrawals
+app.delete("/api/admin/delete-withdrawal/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await withdrawalsCol.deleteOne({ _id: ObjectId(id) });
+    res.json({ success: true, message: "Withdrawal deleted" });
+  } catch (err) {
+    console.error(err);
+    res.json({ success: false, message: "Failed to delete withdrawal" });
+  }
+});
+//delete loan 
+app.delete("/api/admin/delete-loan/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await loansCol.deleteOne({ _id: ObjectId(id) });
+    res.json({ success: true, message: "Loan deleted" });
+  } catch (err) {
+    console.error(err);
+    res.json({ success: false, message: "Failed to delete loan" });
+  }
+})
 
 // ---------- Member Data ----------
 app.get("/api/member-data/:username", async (req, res) => {

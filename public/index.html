@@ -133,8 +133,7 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
-
-  if (!loginForm) return;
+  if(!loginForm) return;
 
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -142,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value.trim();
 
-    if (!username || !password) {
+    if(!username || !password){
       alert("Please enter both username and password.");
       return;
     }
@@ -153,28 +152,26 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
-
       const result = await res.json();
 
-      if (result.success) {
-        // Save user info in localStorage
+      if(result.success){
+        // Save user info
         localStorage.setItem("loggedInUser", username);
         localStorage.setItem("role", result.role || "member");
         localStorage.setItem("displayName", result.name || username);
-        localStorage.setItem("balance", result.balance || 0);
 
-        // Redirect: admin → admin.html, everyone else → member.html
-        if (result.role === "admin") {
+        // Redirect to correct page
+        if(result.role === "admin"){
           window.location.href = "admin.html";
         } else {
           window.location.href = "member.html";
         }
       } else {
-        alert(result.message || "Login failed. Please try again.");
+        alert(result.message || "Login failed. Check credentials.");
       }
-    } catch (err) {
+    } catch(err){
       console.error("Login error:", err);
-      alert("An error occurred. Please try again later.");
+      alert("Server error. Try again later.");
     }
   });
 });

@@ -193,33 +193,62 @@ async function addMemberRow() {
   const username = prompt("Enter username");
   const email = prompt("Enter email");
   const password = prompt("Enter password");
-  if(!fullname||!username||!email||!password) return;
-  await fetch("/api/admin/add-member",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fullname,username,email,password})});
-  await loadData();
+  if(!fullname || !username || !email || !password) return;
+
+  const res = await fetch("/api/admin/add-member", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fullname, username, email, password })
+  });
+  const data = await res.json();
+  if(data.success) loadData();
+  else alert(data.message);
 }
 
 async function addWeeklyRow() {
   const username = prompt("Member username");
   const amount = parseFloat(prompt("Amount"));
-  if(!username||isNaN(amount)) return;
-  await fetch("/api/admin/add-weekly",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,amount})});
-  await loadData();
+  if(!username || isNaN(amount)) return;
+
+  const res = await fetch("/api/admin/add-weekly", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, amount })
+  });
+  const data = await res.json();
+  if(data.success) loadData(); 
+  else alert(data.message);
 }
 
 async function addWithdrawalRow() {
   const username = prompt("Member username");
   const amount = parseFloat(prompt("Amount"));
-  if(!username||isNaN(amount)) return;
-  await fetch("/api/admin/add-withdrawal",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,amount})});
-  await loadData();
+  if(!username || isNaN(amount)) return;
+
+  const res = await fetch("/api/admin/add-withdrawal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, amount })
+  });
+  const data = await res.json();
+  if(data.success) loadData();
+  else alert(data.message);
 }
 
 async function addLoanRow() {
   const username = prompt("Member username");
-  const amount = parseFloat(prompt("Amount borrowed"));
-  if(!username||isNaN(amount)) return;
-  await fetch("/api/admin/add-loan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,amount})});
-  await loadData();
+  const borrowed = parseFloat(prompt("Amount borrowed"));
+  const repayment = parseFloat(prompt("Initial repayment (optional)")) || 0;
+  if(!username || isNaN(borrowed)) return;
+
+  const res = await fetch("/api/admin/add-loan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, borrowed, repayment })
+  });
+  const data = await res.json();
+  if(data.success) loadData();
+  else alert(data.message);
 }
 
 // ---------- Update / Delete Functions ----------

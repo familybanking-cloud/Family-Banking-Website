@@ -96,8 +96,67 @@
       height: 100%;
       pointer-events: none;
     }
+
+    /* Header style */
+    header {
+      background-color: rgb(4, 4, 4); /* Black */
+      color: rgb(0, 0, 0);
+      padding: 15px 30px;
+      display: flex; 
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    header img {
+      height: 50px;
+    }
+    
+    /*navigation style*/
+    nav a {
+      color: rgb(255, 247, 0);
+      text-decoration: none;
+      margin-left: 20px;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+    nav a:hover {
+      text-decoration: underline;
+      color: #ff1120;
+    }
+
+    /* Section- The heading */
+    .heading {
+      background: url("family.jpg") no-repeat center center/cover;
+      color: rgb(247, 238, 238);
+      text-align: center;
+      padding: 10px 10px;
+    }
+    
+    /*heading size and margin*/
+    .heading h1 {
+      font-size: 3rem;
+      margin-bottom: 10px;
+    }
+    /*second heading*/
+    .heading p {
+      font-size: 1 rem;
+      max-width: 600px;
+      margin: auto;
+    }
   </style>
 </head>
+<header>
+    <img src="logo.jpeg" alt="Logo">
+    <nav>
+      <a href="home.html">Home</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="signup.html">Sign Up</a>
+      <a href="index.html">Log In</a>
+      <a href="announcement.html">Announcement</a>
+      <a href="winner.html">Winners</a>
+    </nav>
+  </header>
 <body>
   <h1>🎉Weekly and Monthly Winners🎉</h1>
 
@@ -160,19 +219,6 @@ async function loadWinners() {
 
 loadWinners();
 </script>
-
-<header>
-    <img src="logo.jpeg" alt="Logo">
-    <nav>
-      <a href="home.html">Home</a>
-      <a href="about.html">About</a>
-      <a href="contact.html">Contact</a>
-      <a href="signup.html">Sign Up</a>
-      <a href="index.html">Log In</a>
-      <a href="announcement.html">Announcement</a>
-      <a href="winner.html">Winners</a>
-    </nav>
-  </header>
 
 </body>
 </html>

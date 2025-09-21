@@ -320,6 +320,22 @@ app.get("/api/member-data/:username", async (req, res) => {
   res.json({ success: true, user, weekly, withdrawals, loans, depositsTotal, withdrawalsTotal, loansTotal, balance });
 });
 
+app.get("/api/admin-data", async (req, res) => {
+  try {
+    const members = await Member.find();
+    const weekly = await Weekly.find();
+    const withdrawals = await Withdrawal.find();
+    const loans = await Loan.find();
+
+    // ✅ Calculate bank total from weekly contributions
+    const bankTotal = weekly.reduce((sum, w) => sum + (w.amount || 0), 0);
+
+    res.json({ members, weekly, withdrawals, loans, bankTotal });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load admin data" });
+  }
+});
+
 // ---------- Serve HTML Pages ----------
 const pages = ["index","signup","admin","member"];
 pages.forEach(p => {

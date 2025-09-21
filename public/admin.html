@@ -75,7 +75,6 @@ footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; mar
   </table>
   <button onclick="addLoanRow()">Add Loan</button>
 </section>
-
 <script>
 let data = { members: [], weekly: [], withdrawals: [], loans: [] };
 
@@ -252,6 +251,9 @@ async function addLoanRow() {
   if(data.success) loadData();
   else alert(data.message);
 }
+const bankTotal = data.weekly.reduce((sum, w) => sum + (parseFloat(w.amount) || 0), 0);
+document.getElementById("bankTotal").innerText =
+  `Bank Total: $${bankTotal.toFixed(2)}`;
 
 // ---------- Update / Delete Functions ----------
 async function updateMember(username,key,value){ await fetch("/api/admin/update-member",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,[key]:value})}); await loadData(); }
@@ -273,6 +275,7 @@ function logout(){ localStorage.clear(); window.location.href="index.html"; }
 // ---------- On Load ----------
 window.onload = loadData;
 </script>
+
 <footer>
 <p>© 2025 Family Banking | Saving as One, Succeeding as Many</p>
 </footer>

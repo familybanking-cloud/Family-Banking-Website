@@ -143,6 +143,29 @@
       max-width: 600px;
       margin: auto;
     }
+    #congrats-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 234, 0, 0.95);
+  color: #ff0000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  font-size: 3rem;
+  text-align: center;
+  transition: opacity 1s ease;
+}
+
+#congrats-overlay p {
+  font-size: 1.5rem;
+  margin-top: 20px;
+  color: #031bf7;
+}
   </style>
 </head>
 <header>
@@ -158,6 +181,12 @@
     </nav>
   </header>
 <body>
+  <!-- Congratulation Overlay -->
+<div id="congrats-overlay">
+  <h1>🎉 CONGRATULATIONS! 🎉</h1>
+  <p>Revealing this week’s winner...</p>
+</div>
+
   <h1>🎉Weekly and Monthly Winners🎉</h1>
 
   <!-- Current Winner -->
@@ -190,35 +219,89 @@
 
   <canvas id="fireworks"></canvas>
 
-  <script>
-async function loadWinners() {
-  // Fetch current winner
-  const currentRes = await fetch("/api/winners/current");
-  const current = await currentRes.json();
-  if (current && current.name) {
-    document.getElementById("winner-name").innerText = current.name;
-    document.querySelector("#current-winner img").src = current.image || "default.jpg";
-  }
+<script src="https://cdn.jsdelivr.net/npm/fireworks-js@2/dist/fireworks.js"></script>
+<script>
+let lastWinnerName = "";
 
-  // Fetch all past winners
-  const pastRes = await fetch("/api/winners");
-  const winners = await pastRes.json();
+// Show congrats overlay
+function showCongrats() {
+  const overlay = document.getElementById("congrats-overlay");
+  overlay.style.opacity = "1";
+  overlay.style.display = "flex";
 
-  const pastContainer = document.getElementById("past-winners-list");
-  pastContainer.innerHTML = "";
-  winners.forEach(w => {
-    const div = document.createElement("div");
-    div.classList.add("past-winner");
-    div.innerHTML = `
-      <img src="${w.image || 'default.jpg'}" alt="${w.name}">
-      <p>${w.name}</p>
-    `;
-    pastContainer.appendChild(div);
-  });
+  // Hide after 3 seconds
+  setTimeout(() => {
+    overlay.style.opacity = "0";
+    setTimeout(() => { overlay.style.display = "none"; }, 1000);
+  }, 3000);
 }
 
-loadWinners();
+// Launch fireworks when Celebrate button is clicked
+function launchFireworks() {
+  const container = document.getElementById('fireworks');
+  const fireworks = new Fireworks.default(container, {
+    rocketsPoint: 50,
+    speed: 3,
+    acceleration: 1.05,
+    friction: 0.95,
+    gravity: 1.5,
+    particles: 100,
+    trace: 3,
+    explosion: 5
+  });
+  fireworks.start();
+  setTimeout(() => fireworks.stop(), 5000);
+}
+
+// Load winners dynamically
+async function loadWinners() {
+  try {
+    // Fetch current winner
+    const currentRes = await fetch("/api/winners/current");
+    const current = await currentRes.json();
+
+    if (current && current.name) {
+      // If winner changed, show overlay + fireworks
+      if(current.name !== lastWinnerName) {
+        lastWinnerName = current.name;
+        showCongrats();
+        launchFireworks();
+      }
+
+      document.getElementById("winner-name").innerText = current.name;
+      document.querySelector("#current-winner img").src = current.image || "default.jpg";
+      document.querySelector("#current-winner p").innerText = current.type ? `🏆 ${current.type.toUpperCase()} Winner!` : "🏆 This Week’s Winner!";
+    }
+
+    // Fetch past winners
+    const pastRes = await fetch("/api/winners");
+    const winners = await pastRes.json();
+
+    const pastContainer = document.getElementById("past-winners-list");
+    pastContainer.innerHTML = "";
+    winners.forEach(w => {
+      if(current && w.name === current.name) return; // skip current winner
+      const div = document.createElement("div");
+      div.classList.add("past-winner");
+      div.innerHTML = `
+        <img src="${w.image || 'default.jpg'}" alt="${w.name}">
+        <p>${w.name}</p>
+      `;
+      pastContainer.appendChild(div);
+    });
+
+  } catch(err) {
+    console.error("Failed to load winners:", err);
+  }
+}
+
+// Auto-load winners
+window.addEventListener('DOMContentLoaded', () => {
+  loadWinners();
+  setInterval(loadWinners, 10000); // refresh every 10s
+});
 </script>
+
 
 </body>
 </html>

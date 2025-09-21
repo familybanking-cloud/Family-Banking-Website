@@ -75,6 +75,16 @@ footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; mar
   </table>
   <button onclick="addLoanRow()">Add Loan</button>
 </section>
+
+<h3>Add Winner</h3>
+<input id="winnerName" placeholder="Winner Name">
+<input id="winnerImage" placeholder="Image URL">
+<select id="winnerType">
+  <option value="weekly">Weekly</option>
+  <option value="monthly">Monthly</option>
+</select>
+<button onclick="addWinner()">Add Winner</button>
+
 <script>
 let data = { members: [], weekly: [], withdrawals: [], loans: [] };
 
@@ -266,11 +276,51 @@ async function deleteWeekly(id){ await fetch(`/api/admin/delete-weekly/${id}`,{m
 async function deleteWithdrawal(id){ await fetch(`/api/admin/delete-withdrawal/${id}`,{method:"DELETE"}); await loadData(); }
 async function deleteLoan(id){ await fetch(`/api/admin/delete-loan/${id}`,{method:"DELETE"}); await loadData(); }
 
+//winner 
+async function markAsWinner(username, fullname) {
+  const title = prompt("Enter winner title (e.g. 'Weekly Winner' or 'Monthly Winner'):");
+  const image = prompt("Enter image URL of the winner (optional):", "images/default.png");
+
+  if (!title) return alert("Winner title is required!");
+
+  try {
+    const res = await fetch("/api/admin/add-winner", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, fullname, title, image })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert(`${fullname} marked as winner! 🎉`);
+    } else {
+      alert("Failed to set winner: " + data.message);
+    }
+  } catch (err) {
+    console.error("Error marking winner:", err);
+    alert("Error marking winner.");
+  }
+}
+//winner
+async function addWinner() {
+  const name = document.getElementById("winnerName").value;
+  const image = document.getElementById("winnerImage").value;
+  const type = document.getElementById("winnerType").value;
+
+  await fetch("/api/winners", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, image, type })
+  });
+
+  alert("Winner added!");
+}
+
 // ---------- Render All ----------
 function renderAll(){ renderMembers(); renderWeekly(); renderWithdrawals(); renderLoans(); }
 
 // ---------- Logout ----------
-function logout(){ localStorage.clear(); window.location.href="index.html"; }
+function logout(){ localStorage.clear(); window.location.href="signup.html"; }
 
 // ---------- On Load ----------
 window.onload = loadData;

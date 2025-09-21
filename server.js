@@ -320,21 +320,58 @@ app.get("/api/member-data/:username", async (req, res) => {
   res.json({ success: true, user, weekly, withdrawals, loans, depositsTotal, withdrawalsTotal, loansTotal, balance });
 });
 
-app.get("/api/admin-data", async (req, res) => {
+//winner
+// =====================
+// Winner Schema & Model
+// =====================
+const mongoose = require("mongoose");
+
+const winnerSchema = new mongoose.Schema({
+  name: String,
+  image: String, // store image URL or filename
+  type: { type: String, enum: ["weekly", "monthly"], default: "weekly" },
+  date: { type: Date, default: Date.now }
+});
+
+const Winner = mongoose.model("Winner", winnerSchema);
+
+// =====================
+// Winner Routes
+// =====================
+
+// Add new winner
+app.post("/api/winners", async (req, res) => {
   try {
-    const members = await Member.find();
-    const weekly = await Weekly.find();
-    const withdrawals = await Withdrawal.find();
-    const loans = await Loan.find();
-
-    // ✅ Calculate bank total from weekly contributions
-    const bankTotal = weekly.reduce((sum, w) => sum + (w.amount || 0), 0);
-
-    res.json({ members, weekly, withdrawals, loans, bankTotal });
+    const { name, image, type } = req.body;
+    const winner = new Winner({ name, image, type });
+    await winner.save();
+    res.json(winner);
   } catch (err) {
-    res.status(500).json({ message: "Failed to load admin data" });
+    res.status(500).json({ error: "Failed to add winner" });
   }
 });
+
+// Get latest winner (weekly by default)
+app.get("/api/winners/current", async (req, res) => {
+  try {
+    const winner = await Winner.findOne().sort({ date: -1 });
+    res.json(winner || {});
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch current winner" });
+  }
+});
+
+// Get all past winners
+app.get("/api/winners", async (req, res) => {
+  try {
+    const winners = await Winner.find().sort({ date: -1 });
+    res.json(winners);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch past winners" });
+  }
+});
+
+
 
 // ---------- Serve HTML Pages ----------
 const pages = ["index","signup","admin","member"];

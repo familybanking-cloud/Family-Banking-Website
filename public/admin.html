@@ -16,6 +16,60 @@ input, select { width:100%; box-sizing:border-box; }
 button { padding:5px 10px; margin-top:5px; background:#070707; color:#fff; border:none; cursor:pointer; }
 button:hover { background:#fd0808; }
 footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; margin-top:40px; }
+#bank-total-box {
+  background: #fff700;
+  color: #000;
+  padding: 20px 20px;
+  border-radius: 15px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  text-align: center;
+  font-family: Arial, sans-serif;
+  max-width: 200px;
+  margin: 30px auto; /* centers the box */
+}
+
+#bank-total-box h2 {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+#bank-total-box p {
+  font-size: 2.2rem;
+  font-weight: bold;
+}
+
+@keyframes flashDeposit {
+  0% { transform: scale(1); background-color: #b6ffb6; }
+  50% { transform: scale(1.2); background-color: #90ee90; }
+  100% { transform: scale(1); background-color: #b6ffb6; }
+}
+
+@keyframes flashWithdrawal {
+  0% { transform: scale(1); background-color: #ffb6b6; }
+  50% { transform: scale(1.2); background-color: #ff7f7f; }
+  100% { transform: scale(1); background-color: #ffb6b6; }
+}
+
+.flash-deposit {
+  animation: flashDeposit 0.8s ease-in-out;
+}
+
+.flash-withdrawal {
+  animation: flashWithdrawal 0.8s ease-in-out;
+}
+
+#bank-total-box {
+  width: 250px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 15px;
+  background-color: #ffff00;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-align: center;
+}
+
 </style>
 </head>
 <body>
@@ -26,7 +80,10 @@ footer { background:#060606; color:#f2fa00; text-align:center; padding:15px; mar
   <button onclick="logout()">Logout</button>
 </header>
 
-<h2 id="bankTotal">Bank Total: $0.00</h2>
+<div id="bank-total-box">
+  <h2>Bank Total💰</h2>
+  <p id="bankTotalAmount">$0.00</p>
+</div>
 
 <!-- Members -->
 <section>
@@ -307,7 +364,7 @@ async function addWinner() {
   const image = document.getElementById("winnerImage").value;
   const type = document.getElementById("winnerType").value;
 
-  await fetch("/api/winners", {
+  await fetch("/api/winner", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, image, type })
@@ -320,10 +377,51 @@ async function addWinner() {
 function renderAll(){ renderMembers(); renderWeekly(); renderWithdrawals(); renderLoans(); }
 
 // ---------- Logout ----------
-function logout(){ localStorage.clear(); window.location.href="signup.html"; }
+function logout(){ localStorage.clear(); window.location.href="home.html"; }
 
 // ---------- On Load ----------
 window.onload = loadData;
+
+function updateBankTotal() {
+  // sum all weekly contributions
+  const total = data.weekly.reduce((sum, w) => sum + (parseFloat(w.amount) || 0), 0);
+  document.getElementById("bankTotalAmount").innerText = `$${total.toFixed(2)}`;
+}
+
+// call it after loading data or updating weekly contributions
+function renderAll() {
+  renderMembers();
+  renderWeekly();
+  renderWithdrawals();
+  renderLoans();
+  updateBankTotal(); // <-- add this
+}
+
+let lastTotal = 0;
+
+function updateBankTotal() {
+  const totalContributions = data.weekly.reduce((sum, w) => sum + (parseFloat(w.amount)||0), 0);
+  const totalWithdrawals = data.withdrawals.reduce((sum, w) => sum + (parseFloat(w.withdrawn)||0), 0);
+  const netTotal = totalContributions - totalWithdrawals;
+
+  const bankBox = document.getElementById("bank-total-box");
+  const totalElement = document.getElementById("bankTotalAmount");
+  totalElement.innerText = `$${netTotal.toFixed(2)}`;
+
+  if(netTotal > lastTotal){
+    bankBox.classList.add("flash-deposit");
+    setTimeout(() => bankBox.classList.remove("flash-deposit"), 800);
+  } else if(netTotal < lastTotal){
+    bankBox.classList.add("flash-withdrawal");
+    setTimeout(() => bankBox.classList.remove("flash-withdrawal"), 800);
+  }
+
+  lastTotal = netTotal;
+}
+
+// Call this at the end of renderAll or loadData
+updateBankTotal();
+
 </script>
 
 <footer>

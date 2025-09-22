@@ -340,7 +340,7 @@ const Winner = mongoose.model("Winner", winnerSchema);
 // =====================
 
 // Add new winner
-app.post("/api/winners", async (req, res) => {
+app.post("/api/winner", async (req, res) => {
   try {
     const { name, image, type } = req.body;
     const winner = new Winner({ name, image, type });

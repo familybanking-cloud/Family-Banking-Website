@@ -181,19 +181,22 @@
     </nav>
   </header>
 <body>
-  <!-- Congratulation Overlay -->
-<div id="congrats-overlay">
-  <h1>🎉 CONGRATULATIONS! 🎉</h1>
-  <p>Revealing this week’s winner...</p>
-</div>
 
   <h1>🎉Weekly and Monthly Winners🎉</h1>
 
   <!-- Current Winner -->
   <div class="winner-card" id="current-winner">
     <img src="winner.jpg" alt="Winner">
-    <h2 id="winner-name">John Doe</h2>
-    <p>🏆 This Week’s Winner!</p>
+    <h2 id="winner-name">Biggy</h2>
+    <p>🏆 This Month Winner!</p>
+    <button onclick="launchFireworks()">Celebrate 🎆</button>
+  </div>
+
+  <!-- Current Winner -->
+  <div class="winner-card" id="current-winner">
+    <img src="winner.jpg" alt="Winner">
+    <h2 id="winner-name">Mom</h2>
+    <p>🏆 The Raffle Winner!</p>
     <button onclick="launchFireworks()">Celebrate 🎆</button>
   </div>
 
@@ -204,15 +207,15 @@
       <!-- Example Past Winners -->
       <div class="past-winner">
         <img src="winner1.jpg" alt="Past Winner">
-        <p>Alice</p>
+        <p>soon to be announced</p>
       </div>
       <div class="past-winner">
         <img src="winner2.jpg" alt="Past Winner">
-        <p>Michael</p>
+        <p>Soon to be announced</p>
       </div>
       <div class="past-winner">
         <img src="winner3.jpg" alt="Past Winner">
-        <p>Sophia</p>
+        <p>Soon to be announced</p>
       </div>
     </div>
   </div>
@@ -223,6 +226,18 @@
 <script>
 let lastWinnerName = "";
 
+// Show congrats overlay
+function showCongrats() {
+  const overlay = document.getElementById("congrats-overlay");
+  overlay.style.opacity = "1";
+  overlay.style.display = "flex";
+
+  // Hide after 3 seconds
+  setTimeout(() => {
+    overlay.style.opacity = "0";
+    setTimeout(() => { overlay.style.display = "none"; }, 1000);
+  }, 3000);
+}
 // Launch fireworks when Celebrate button is clicked
 function launchFireworks() {
   const container = document.getElementById('fireworks');
@@ -288,7 +303,6 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(loadWinners, 10000); // refresh every 10s
 });
 </script>
-
 
 </body>
 </html>

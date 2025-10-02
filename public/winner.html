@@ -223,19 +223,6 @@
 <script>
 let lastWinnerName = "";
 
-// Show congrats overlay
-function showCongrats() {
-  const overlay = document.getElementById("congrats-overlay");
-  overlay.style.opacity = "1";
-  overlay.style.display = "flex";
-
-  // Hide after 3 seconds
-  setTimeout(() => {
-    overlay.style.opacity = "0";
-    setTimeout(() => { overlay.style.display = "none"; }, 1000);
-  }, 3000);
-}
-
 // Launch fireworks when Celebrate button is clicked
 function launchFireworks() {
   const container = document.getElementById('fireworks');
